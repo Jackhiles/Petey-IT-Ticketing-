@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+/* Dark mode follows the operating system for now; a user toggle arrives with the UI shell. */
+:root {
+  color-scheme: light dark;
+}
