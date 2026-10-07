@@ -1,0 +1,6 @@
+# Lets `docker compose up` work from the repository root. The services live in docker/compose.yml.
+name: petey
+
+include:
+  - path: docker/compose.yml
+    env_file: .env
