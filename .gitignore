@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+test-results/
+playwright-report/
+playwright/.cache/
+.DS_Store
+next-env.d.ts
+packages/db/src/generated/
