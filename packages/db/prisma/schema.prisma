@@ -1,0 +1,12 @@
+// Petey database schema. Every change here ships as a migration in prisma/migrations.
+// Tables arrive phase by phase; see docs/PLAN.md, "Data model".
+// The connection URL lives in prisma.config.ts (Migrate) and src/index.ts (runtime).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
