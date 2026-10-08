@@ -183,8 +183,11 @@ test("the board shows a column per status, and dragging a card changes its statu
   await expect(closed.getByTestId("board-card")).toContainText(SUBJECT);
   await expect(closed.getByTestId("column-count")).toHaveText("1");
 
+  // The card moves at once; wait for the save before reloading, or the reload cancels it.
+  const dragSaved = page.waitForResponse((r) => r.request().method() === "POST" && r.ok());
   await dragCard(page, closed.getByTestId("board-card"), open);
   await expect(open.getByTestId("board-card")).toContainText(SUBJECT);
+  await dragSaved;
   await expect(closed.getByTestId("column-count")).toHaveText("0");
 
   // The move was saved: it survives a reload and shows in the ticket's history.
