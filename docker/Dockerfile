@@ -17,6 +17,8 @@ RUN pnpm build
 FROM base AS runtime
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app /app
+# Attachments live on a volume mounted here; the directory must belong to the app user.
+RUN mkdir -p /data/uploads && chown node:node /data/uploads
 USER node
 EXPOSE 3000
 CMD ["sh", "docker/start-web.sh"]

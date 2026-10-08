@@ -12,6 +12,10 @@ x-app: &app
     APP_SECRET: ${APP_SECRET:?set APP_SECRET in .env}
     APP_URL: ${APP_URL:-http://localhost:3000}
     LOG_LEVEL: ${LOG_LEVEL:-info}
+    STORAGE_DIR: /data/uploads
+    ATTACHMENT_MAX_MB: ${ATTACHMENT_MAX_MB:-25}
+  volumes:
+    - uploads:/data/uploads
   depends_on:
     db:
       condition: service_healthy
@@ -62,3 +66,5 @@ services:
 
 volumes:
   db-data:
+  # Ticket attachments. Back this up together with db-data.
+  uploads:
