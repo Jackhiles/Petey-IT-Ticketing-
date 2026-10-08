@@ -2,7 +2,7 @@ import { getPrisma } from "@petey/db";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { twoFactor } from "better-auth/plugins/two-factor";
-import { appSecret, appUrl } from "./config";
+import { appSecret, appUrl, authRateLimitEnabled } from "./config";
 import type { Actor, Role } from "./permissions";
 
 export const MIN_PASSWORD_LENGTH = 10;
@@ -18,6 +18,9 @@ function createAuth() {
       database: { generateId: "uuid" },
       cookiePrefix: "petey",
     },
+    // Limits repeated sign-in and code attempts per client (Better Auth's defaults:
+    // 3 sign-in or two-factor attempts per 10 seconds).
+    rateLimit: { enabled: authRateLimitEnabled() },
     user: {
       additionalFields: {
         role: { type: "string", required: false, defaultValue: "requester", input: false },
