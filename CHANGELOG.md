@@ -6,7 +6,14 @@ All notable changes to Petey are recorded here. The format follows
 
 ## [Unreleased]
 
-### Phase 2b: Technician productivity
+### Phase 3: Requester portal
+
+- My tickets: open, resolved-and-closed and all views, search across the requester's own tickets (public text only), and a flag on tickets waiting for the requester's reply
+- Raise a ticket with a type, category, rich text details, custom fields and attachments; everything missing is reported at once and nothing typed is lost
+- Ticket page with the public conversation, replies with attachments, "my issue is solved", and reopen for resolved tickets; a reply to a resolved ticket reopens it, and closed tickets offer a follow-up ticket instead
+- Custom fields: admins define text, long text, number, date, dropdown and checkbox fields, for all tickets or one type, optionally required and optionally technician-only; technicians see and edit them on every ticket, with changes in history
+- Admin setting for whether the portal requires a category
+- Requesters never see internal notes, technician-only fields or anyone else's tickets, checked by service tests and by end-to-end tests at desktop and phone width
 
 - Tags, managed by admins and applied by technicians, shown on tickets, list rows and board cards, and filterable in the list
 - Watchers by email address, linked to a Petey user when one exists; they start receiving updates when email arrives in Phase 4

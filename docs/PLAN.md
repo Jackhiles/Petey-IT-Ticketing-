@@ -211,6 +211,8 @@ Done when: a technician can take a ticket from new to closed, and every change a
 - My tickets list, ticket detail, reply, mark resolved, reopen
 - Responsive layout checked at phone width
 
+- Custom fields (definitions, portal and technician inputs, required-field validation). The data model listed them but no phase built them; added here in Phase 3
+
 Done when: a requester can raise and follow a ticket without seeing internal notes or anyone else's tickets, verified by tests at the service and UI level.
 
 ### Phase 4: Email

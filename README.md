@@ -5,8 +5,8 @@ ManageEngine ServiceDesk Plus. Requesters raise tickets by email or a self-servi
 portal, technicians work them against SLAs, and admins configure the rules. It ships
 as one `docker compose up`.
 
-> **Status:** early development. Users, sign-in (with two-factor) and the technician
-> ticket workspace are in place; the requester portal and email come next. See [`docs/PLAN.md`](docs/PLAN.md)
+> **Status:** early development. Users, sign-in (with two-factor), the technician
+> ticket workspace and the requester portal are in place; email comes next. See [`docs/PLAN.md`](docs/PLAN.md)
 > for the roadmap and [`CHANGELOG.md`](CHANGELOG.md) for progress.
 
 ## Quick start
