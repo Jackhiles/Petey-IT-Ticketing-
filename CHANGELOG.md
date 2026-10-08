@@ -15,6 +15,8 @@ All notable changes to Petey are recorded here. The format follows
 - Admin setting for whether the portal requires a category
 - Requesters never see internal notes, technician-only fields or anyone else's tickets, checked by service tests and by end-to-end tests at desktop and phone width
 
+### Phase 2b: Technician productivity
+
 - Tags, managed by admins and applied by technicians, shown on tickets, list rows and board cards, and filterable in the list
 - Watchers by email address, linked to a Petey user when one exists; they start receiving updates when email arrives in Phase 4
 - Merge a duplicate into another ticket, keeping every message, attachment, watcher, tag and time entry; the duplicate's description becomes a message, and it is closed and linked as merged into the target
