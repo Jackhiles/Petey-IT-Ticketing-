@@ -5,7 +5,10 @@ import {
   listCategories,
   listGroupOptions,
   listPriorities,
+  listCannedResponses,
+  listMacros,
   listStatuses,
+  listTags,
   NotFoundError,
   type TicketAttachment,
   type TicketHistoryEntry,
@@ -15,13 +18,37 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SafeHtml } from "@/components/safe-html";
 import { Badge, Card, cn } from "@/components/ui";
+import { formatMinutes } from "@/lib/format";
 import { requireArea } from "@/lib/session";
 import { getMessages } from "@/messages";
 import { PriorityBadge, StatusBadge } from "../badges";
 import { RelativeTime } from "../relative-time";
 import { addMessageAction, updateTicketAction } from "../actions";
+import {
+  addWatcherAction,
+  deleteTimeAction,
+  linkAction,
+  logTimeAction,
+  mergeAction,
+  removeWatcherAction,
+  runMacroAction,
+  setTagsAction,
+  splitAction,
+  unlinkAction,
+} from "./actions";
+import { PresenceBar } from "./presence-bar";
 import { ReplyForm } from "./reply-form";
 import { TicketFieldsForm } from "./ticket-fields-form";
+import {
+  LinksPanel,
+  MacrosPanel,
+  MergePanel,
+  SplitForm,
+  TagChips,
+  TagsPanel,
+  TimePanel,
+  WatchersPanel,
+} from "./ticket-panels";
 
 type TimelineItem =
   | { kind: "message"; at: Date; message: TicketMessageView }
@@ -75,15 +102,32 @@ function HistoryLine({ entry }: { entry: TicketHistoryEntry }) {
           ([field, c]) => t.historyChange(labels[field] ?? field, show(c.from), show(c.to)),
         )
       : [];
+  const p = getMessages().productivity;
+  const d = (entry.diff ?? {}) as Record<string, unknown>;
+  const str = (k: string) => (typeof d[k] === "string" ? (d[k] as string) : "");
+  const list = (k: string) => (Array.isArray(d[k]) ? (d[k] as string[]).join(", ") : "");
+  const kind = (k: string) => p.linkKinds[k as keyof typeof p.linkKinds] ?? k;
+  const described: Record<string, () => string> = {
+    created: () => t.historyCreated,
+    updated: () => `${t.historyUpdated} ${changes.join("; ")}`,
+    tagged: () => p.history.tagged(list("added"), list("removed")),
+    linked: () => p.history.linked(kind(str("kind")).toLowerCase(), str("ticket")),
+    unlinked: () => p.history.unlinked,
+    merged_into: () => p.history.mergedInto(str("ticket")),
+    merged_from: () => p.history.mergedFrom(str("ticket")),
+    split: () => p.history.split(str("ticket")),
+    time_logged: () => p.history.timeLogged(formatMinutes(Number(d.minutes) || 0)),
+    time_deleted: () => p.history.timeDeleted(formatMinutes(Number(d.minutes) || 0)),
+    macro_run: () => p.history.macroRun(str("macro")),
+    watcher_added: () => p.history.watcherAdded(str("email")),
+    watcher_removed: () => p.history.watcherRemoved(str("email")),
+  };
   return (
     <li className="flex gap-2 py-1 text-xs text-zinc-500" data-testid="history-entry">
       <span aria-hidden>•</span>
       <span>
         <span className="font-medium text-zinc-700 dark:text-zinc-300">{who}</span>{" "}
-        {entry.action === "created"
-          ? t.historyCreated
-          : `${t.historyUpdated} ${changes.join("; ")}`}{" "}
-        · <RelativeTime date={entry.createdAt} />
+        {described[entry.action]?.() ?? entry.action} · <RelativeTime date={entry.createdAt} />
       </span>
     </li>
   );
@@ -98,13 +142,21 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
     if (err instanceof NotFoundError) notFound();
     throw err;
   });
-  const [statuses, priorities, categories, assignees, groups] = await Promise.all([
-    listStatuses(),
-    listPriorities(),
-    listCategories(),
-    listAssignees(actor),
-    listGroupOptions(actor),
-  ]);
+  const [statuses, priorities, categories, assignees, groups, tags, canned, macros] =
+    await Promise.all([
+      listStatuses(),
+      listPriorities(),
+      listCategories(),
+      listAssignees(actor),
+      listGroupOptions(actor),
+      listTags(),
+      listCannedResponses(actor),
+      listMacros(actor),
+    ]);
+  const mergedAway = ticket.links.some((l) => l.kind === "merged_into");
+  const hasChildren = ticket.links.some((l) => l.kind === "child");
+  const byId = <T extends { id: string }>(items: T[], make: (item: T) => () => Promise<void>) =>
+    Object.fromEntries(items.map((item) => [item.id, make(item)]));
 
   // Messages and field changes in one timeline; replies and notes already show as messages.
   const timeline: TimelineItem[] = [
@@ -114,7 +166,8 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
       message,
     })),
     ...ticket.history
-      .filter((entry) => entry.action === "created" || entry.action === "updated")
+      // Replies and notes already appear as messages.
+      .filter((entry) => entry.action !== "replied" && entry.action !== "noted")
       .map((entry) => ({ kind: "event" as const, at: entry.createdAt, entry })),
   ].sort((a, b) => a.at.getTime() - b.at.getTime());
 
@@ -133,11 +186,18 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
             <PriorityBadge priority={ticket.priority} />
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{ticket.subject}</h1>
+          {ticket.tags.length > 0 && (
+            <div className="mt-2">
+              <TagChips tags={ticket.tags} />
+            </div>
+          )}
           <p className="mt-1 text-sm text-zinc-500">
             {ticket.requester.name} &lt;{ticket.requester.email}&gt; · {t.created}{" "}
             <RelativeTime date={ticket.createdAt} />
           </p>
         </div>
+
+        <PresenceBar ticketId={ticket.id} seenUpdatedAt={ticket.updatedAt.toISOString()} />
 
         <Card>
           <h2 className="sr-only">{t.description}</h2>
@@ -179,6 +239,9 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
                   </div>
                   <SafeHtml html={item.message.bodyHtml} />
                   <AttachmentLinks files={item.message.attachments} />
+                  {!item.message.isInternal && !mergedAway && (
+                    <SplitForm action={splitAction.bind(null, item.message.id, ticket.id)} />
+                  )}
                 </li>
               ),
             )}
@@ -191,8 +254,19 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
         <Card>
           <ReplyForm
             action={addMessageAction.bind(null, ticket.id)}
+            ticketId={ticket.id}
             statuses={statuses}
             maxMb={Math.round(attachmentMaxBytes() / (1024 * 1024))}
+            seenUpdatedAt={ticket.updatedAt.toISOString()}
+            canned={canned.map((c) => ({
+              id: c.id,
+              title: c.title,
+              preview: c.body
+                .replace(/<[^>]*>/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 120),
+            }))}
           />
         </Card>
       </div>
@@ -216,14 +290,42 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
             categories={categories}
             assignees={assignees}
             groups={groups}
+            hasChildren={hasChildren}
           />
         </Card>
+        <MacrosPanel macros={macros} runAction={runMacroAction.bind(null, ticket.id)} />
+        <TagsPanel action={setTagsAction.bind(null, ticket.id)} all={tags} selected={ticket.tags} />
+        <TimePanel
+          total={ticket.totalMinutes}
+          entries={ticket.timeEntries}
+          logAction={logTimeAction.bind(null, ticket.id)}
+          deleteActions={byId(
+            ticket.timeEntries.filter((e) => e.user?.id === actor.id || actor.role === "admin"),
+            (e) => deleteTimeAction.bind(null, ticket.id, e.id),
+          )}
+        />
+        <LinksPanel
+          links={ticket.links}
+          linkAction={linkAction.bind(null, ticket.id)}
+          unlinkActions={byId(
+            ticket.links.filter((l) => l.kind !== "merged_into" && l.kind !== "merged_from"),
+            (l) => unlinkAction.bind(null, ticket.id, l.id),
+          )}
+        />
+        <WatchersPanel
+          watchers={ticket.watchers}
+          addAction={addWatcherAction.bind(null, ticket.id)}
+          removeActions={byId(ticket.watchers, (w) =>
+            removeWatcherAction.bind(null, ticket.id, w.id),
+          )}
+        />
         {ticket.attachments.length > 0 && (
           <Card>
             <h2 className="mb-2 text-lg font-medium">{t.attachments}</h2>
             <AttachmentLinks files={ticket.attachments} />
           </Card>
         )}
+        {!mergedAway && <MergePanel action={mergeAction.bind(null, ticket.id)} />}
       </aside>
     </div>
   );

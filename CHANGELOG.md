@@ -6,6 +6,20 @@ All notable changes to Petey are recorded here. The format follows
 
 ## [Unreleased]
 
+### Phase 2b: Technician productivity
+
+- Tags, managed by admins and applied by technicians, shown on tickets, list rows and board cards, and filterable in the list
+- Watchers by email address, linked to a Petey user when one exists; they start receiving updates when email arrives in Phase 4
+- Merge a duplicate into another ticket, keeping every message, attachment, watcher, tag and time entry; the duplicate's description becomes a message, and it is closed and linked as merged into the target
+- Split a public message out into a new ticket for the same requester, with its attachments; internal notes can't be split because a description is public
+- Link tickets as parent/child or related, by number; resolving a parent can close its open children in the same step
+- Canned responses with variables such as `{{requester.first_name}}` and `{{ticket.number}}`, searchable and inserted from the reply box
+- Macros that apply a reply, status, priority, assignee, group and tag changes in one click, all or nothing
+- Canned responses and macros are personal, or shared by an admin with everyone or one group
+- Collision detection: the ticket page shows who else is viewing or typing, warns when the ticket changes after it was opened, and asks before posting a reply over someone else's change
+- Time tracking with a reply or on its own, with the ticket total in the sidebar
+- Every one of these changes is recorded in the ticket's history
+
 ### Phase 2a: Ticket core
 
 - Tickets with a sequential number shown with an admin-set prefix (default `PTY-`), public replies, internal notes and attachments

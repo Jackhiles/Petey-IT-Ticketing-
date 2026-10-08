@@ -1,7 +1,13 @@
 import { getPrisma, type Prisma, type Tx } from "@petey/db";
 import { z } from "zod";
 import { writeAudit } from "./audit";
-import { discardStored, storeUploads, validateUploads, type UploadInput } from "./attachments";
+import {
+  discardStored,
+  storeUploads,
+  validateUploads,
+  type StoredUpload,
+  type UploadInput,
+} from "./attachments";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "./errors";
 import { htmlToText, isBlankHtml, sanitizeHtml } from "./html";
 import { can, type Actor, type Role } from "./permissions";
@@ -42,13 +48,26 @@ export const updateTicketSchema = z.object({
   requesterId: uuid.optional(),
   assigneeId: optionalRef,
   groupId: optionalRef,
+  /** When the new status resolves or closes the ticket, also close its child tickets. */
+  closeChildren: z.boolean().optional(),
 });
-type TicketPatch = z.output<typeof updateTicketSchema>;
+export type TicketPatch = Omit<z.output<typeof updateTicketSchema>, "closeChildren">;
 
 export const addMessageSchema = z.object({
   bodyHtml: z.string().max(200_000),
   isInternal: z.boolean(),
   statusId: uuid.optional(),
+  /** Minutes worked, logged against this message. */
+  minutes: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 60)
+    .optional(),
+  /** The ticket's updatedAt when the author opened it, for the collision check. */
+  seenUpdatedAt: z.coerce.date().optional(),
+  /** Post even though the ticket changed since it was opened. */
+  confirmStale: z.boolean().optional(),
 });
 
 export const bulkUpdateSchema = z
@@ -84,6 +103,7 @@ export const ticketListQuerySchema = z.preprocess(
     status: listOf(uuid),
     statusType: listOf(z.enum(STATUS_TYPES)),
     priority: listOf(uuid),
+    tag: listOf(uuid),
     category: uuid.optional(),
     assignee: z.union([z.literal("me"), z.literal("unassigned"), uuid]).optional(),
     group: z.union([z.literal("none"), uuid]).optional(),
@@ -116,6 +136,7 @@ export interface TicketListItem {
   requester: Named;
   assignee: Named | null;
   group: Named | null;
+  tags: (Named & { color: string })[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -160,18 +181,47 @@ export interface TicketDetail extends Omit<TicketListItem, "category"> {
   attachments: TicketAttachment[];
   /** Field changes and other events. Empty for requesters. */
   history: TicketHistoryEntry[];
+  /** Staff only below; requesters get empty lists and zero. */
+  watchers: { id: string; email: string; user: Named | null }[];
+  links: TicketLinkView[];
+  timeEntries: TimeEntryView[];
+  totalMinutes: number;
+}
+
+export type TicketLinkKind =
+  "parent" | "child" | "related" | "duplicate" | "merged_into" | "merged_from";
+
+export interface TicketLinkView {
+  id: string;
+  /** How the other ticket relates to this one, e.g. "parent" means it is this ticket's parent. */
+  kind: TicketLinkKind;
+  ticket: {
+    id: string;
+    displayNumber: string;
+    subject: string;
+    status: Named & { type: StatusType };
+  };
+}
+
+export interface TimeEntryView {
+  id: string;
+  minutes: number;
+  note: string;
+  workedAt: Date;
+  user: Named | null;
+  messageId: string | null;
 }
 
 // --- Helpers --------------------------------------------------------------------------
 
-const isStaff = (actor: Actor) => can(actor, "ticket.viewAll");
+export const isStaff = (actor: Actor) => can(actor, "ticket.viewAll");
 
-function requireWork(actor: Actor): void {
+export function requireWork(actor: Actor): void {
   if (!can(actor, "ticket.work")) throw new ForbiddenError();
 }
 
 /** Loads a ticket the actor may see, or throws NotFound so existence is never leaked. */
-async function findVisibleTicket(tx: Tx, actor: Actor, id: string) {
+export async function findVisibleTicket(tx: Tx, actor: Actor, id: string) {
   if (!z.uuid().safeParse(id).success) throw new NotFoundError();
   const ticket = await tx.ticket.findUnique({ where: { id }, include: { status: true } });
   if (!ticket || !can(actor, "ticket.viewOwn", { ownerId: ticket.requesterId }))
@@ -179,13 +229,13 @@ async function findVisibleTicket(tx: Tx, actor: Actor, id: string) {
   return ticket;
 }
 
-async function defaultStatus(tx: Tx) {
+export async function defaultStatus(tx: Tx) {
   const status = await tx.status.findFirst({ where: { isDefault: true } });
   if (!status) throw new ConflictError("no_default_status");
   return status;
 }
 
-async function closedStatus(tx: Tx) {
+export async function closedStatus(tx: Tx) {
   const status = await tx.status.findFirst({
     where: { type: "closed" },
     orderBy: { sortOrder: "asc" },
@@ -206,7 +256,7 @@ async function checkUser(tx: Tx, id: string, field: string, staffOnly: boolean):
   return user;
 }
 
-async function checkRef<T>(find: () => Promise<T | null>, field: string): Promise<T> {
+export async function checkRef<T>(find: () => Promise<T | null>, field: string): Promise<T> {
   const row = await find();
   if (!row) throw new ValidationError({ [field]: "not_found" });
   return row;
@@ -235,7 +285,7 @@ type TicketDiff = Record<string, { from: DiffValue; to: DiffValue }>;
  * Applies a field patch inside a transaction and audits it with readable names, so history
  * still makes sense after a status or user is renamed. Returns false if nothing changed.
  */
-async function applyPatch(
+export async function applyPatch(
   tx: Tx,
   actor: Actor,
   ticketId: string,
@@ -397,6 +447,10 @@ const listInclude = {
   requester: { select: { id: true, name: true, email: true } },
   assignee: { select: { id: true, name: true } },
   group: { select: { id: true, name: true } },
+  tags: {
+    select: { tag: { select: { id: true, name: true, color: true } } },
+    orderBy: { tag: { name: "asc" } },
+  },
 } as const;
 
 export async function getTicket(actor: Actor, id: string): Promise<TicketDetail> {
@@ -404,7 +458,7 @@ export async function getTicket(actor: Actor, id: string): Promise<TicketDetail>
   const base = await findVisibleTicket(prisma, actor, id);
   const staff = isStaff(actor);
 
-  const [t, history, { prefix }] = await Promise.all([
+  const [t, history, extras, { prefix }] = await Promise.all([
     prisma.ticket.findUniqueOrThrow({
       where: { id: base.id },
       include: {
@@ -437,6 +491,7 @@ export async function getTicket(actor: Actor, id: string): Promise<TicketDetail>
           include: { actor: { select: { id: true, name: true } } },
         })
       : Promise.resolve([]),
+    staff ? loadStaffExtras(base.id) : Promise.resolve(null),
     getTicketSettings(),
   ]);
 
@@ -456,6 +511,7 @@ export async function getTicket(actor: Actor, id: string): Promise<TicketDetail>
     requester: t.requester,
     assignee: staff ? t.assignee : null,
     group: staff ? t.group : null,
+    tags: staff ? t.tags.map((x) => x.tag) : [],
     source: t.source,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
@@ -478,6 +534,81 @@ export async function getTicket(actor: Actor, id: string): Promise<TicketDetail>
       diff: h.diff,
       createdAt: h.createdAt,
     })),
+    watchers: extras?.watchers ?? [],
+    links: extras ? extras.links(prefix) : [],
+    timeEntries: extras?.timeEntries ?? [],
+    totalMinutes: extras?.timeEntries.reduce((sum, e) => sum + e.minutes, 0) ?? 0,
+  };
+}
+
+/** Watchers, links and time entries: shown to technicians only. */
+async function loadStaffExtras(ticketId: string) {
+  const prisma = getPrisma();
+  const other = {
+    select: {
+      id: true,
+      number: true,
+      subject: true,
+      status: { select: { id: true, name: true, type: true } },
+    },
+  } as const;
+  const [watchers, linksFrom, linksTo, timeEntries] = await Promise.all([
+    prisma.ticketWatcher.findMany({
+      where: { ticketId },
+      orderBy: { email: "asc" },
+      select: { id: true, email: true, user: { select: { id: true, name: true } } },
+    }),
+    prisma.ticketLink.findMany({ where: { fromTicketId: ticketId }, include: { to: other } }),
+    prisma.ticketLink.findMany({ where: { toTicketId: ticketId }, include: { from: other } }),
+    prisma.timeEntry.findMany({
+      where: { ticketId },
+      orderBy: { workedAt: "desc" },
+      select: {
+        id: true,
+        minutes: true,
+        note: true,
+        workedAt: true,
+        messageId: true,
+        user: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
+  // A link stored as (from, to, type) reads differently from each end.
+  const fromKind: Record<string, TicketLinkKind> = {
+    parent: "child",
+    related: "related",
+    duplicate: "duplicate",
+    merged_into: "merged_into",
+  };
+  const toKind: Record<string, TicketLinkKind> = {
+    parent: "parent",
+    related: "related",
+    duplicate: "duplicate",
+    merged_into: "merged_from",
+  };
+  type Other = {
+    id: string;
+    number: number;
+    subject: string;
+    status: Named & { type: StatusType };
+  };
+  const view = (id: string, kind: TicketLinkKind, o: Other, prefix: string): TicketLinkView => ({
+    id,
+    kind,
+    ticket: {
+      id: o.id,
+      displayNumber: formatTicketNumber(o.number, prefix),
+      subject: o.subject,
+      status: o.status,
+    },
+  });
+  return {
+    watchers,
+    timeEntries,
+    links: (prefix: string) => [
+      ...linksTo.map((l) => view(l.id, toKind[l.linkType] ?? "related", l.from, prefix)),
+      ...linksFrom.map((l) => view(l.id, fromKind[l.linkType] ?? "related", l.to, prefix)),
+    ],
   };
 }
 
@@ -511,6 +642,7 @@ async function buildWhere(actor: Actor, q: TicketListQuery): Promise<Prisma.Tick
   if (q.status?.length) where.push({ statusId: { in: q.status } });
   if (q.statusType?.length) where.push({ status: { type: { in: q.statusType } } });
   if (q.priority?.length) where.push({ priorityId: { in: q.priority } });
+  if (q.tag?.length) where.push({ tags: { some: { tagId: { in: q.tag } } } });
   if (q.category)
     where.push({ OR: [{ categoryId: q.category }, { category: { parentId: q.category } }] });
   if (q.assignee === "me") where.push({ assigneeId: actor.id });
@@ -555,6 +687,7 @@ function toListItem(t: ListRow, prefix: string): TicketListItem {
     requester: { id: t.requester.id, name: t.requester.name },
     assignee: t.assignee,
     group: t.group,
+    tags: t.tags.map((x) => x.tag),
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   };
@@ -645,11 +778,89 @@ export async function getTicketBoard(actor: Actor, input: unknown): Promise<Tick
 
 export async function updateTicket(actor: Actor, id: string, input: unknown): Promise<void> {
   requireWork(actor);
-  const patch = parse(updateTicketSchema, input);
+  const { closeChildren, ...patch } = parse(updateTicketSchema, input);
   await getPrisma().$transaction(async (tx) => {
     await findVisibleTicket(tx, actor, id);
     await applyPatch(tx, actor, id, patch);
+    if (closeChildren) await closeChildTickets(tx, actor, id);
   });
+}
+
+/** Closes the open children of a ticket once it is resolved or closed. */
+export async function closeChildTickets(tx: Tx, actor: Actor, parentId: string): Promise<number> {
+  const parent = await tx.ticket.findUniqueOrThrow({
+    where: { id: parentId },
+    include: { status: true },
+  });
+  if (parent.status.type !== "resolved" && parent.status.type !== "closed") return 0;
+  const closed = await closedStatus(tx);
+  const children = await tx.ticketLink.findMany({
+    where: {
+      fromTicketId: parentId,
+      linkType: "parent",
+      to: { status: { type: { notIn: ["resolved", "closed"] } } },
+    },
+    select: { toTicketId: true },
+  });
+  for (const c of children) await applyPatch(tx, actor, c.toTicketId, { statusId: closed.id });
+  return children.length;
+}
+
+/**
+ * Inserts a message with already-stored attachments inside a transaction, touches the ticket
+ * and audits it. Shared by replies, macros and merges.
+ */
+export async function insertMessage(
+  tx: Tx,
+  actor: Actor,
+  ticketId: string,
+  input: {
+    bodyHtml: string;
+    isInternal: boolean;
+    stored: StoredUpload[];
+    minutes?: number | undefined;
+  },
+): Promise<string> {
+  const message = await tx.ticketMessage.create({
+    data: {
+      ticketId,
+      authorId: actor.id,
+      bodyHtml: input.bodyHtml,
+      bodyText: htmlToText(input.bodyHtml),
+      isInternal: input.isInternal,
+      source: isStaff(actor) ? "agent" : "portal",
+      attachments: {
+        create: input.stored.map((s) => ({ ...s, ticketId, uploadedById: actor.id })),
+      },
+    },
+  });
+  await tx.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } });
+  await writeAudit(tx, {
+    entityType: "ticket",
+    entityId: ticketId,
+    actorId: actor.id,
+    action: input.isInternal ? "noted" : "replied",
+    diff: { messageId: message.id, attachments: input.stored.map((s) => s.filename) },
+  });
+  if (input.minutes) {
+    await tx.timeEntry.create({
+      data: {
+        ticketId,
+        userId: actor.id,
+        minutes: input.minutes,
+        workedAt: new Date(),
+        messageId: message.id,
+      },
+    });
+    await writeAudit(tx, {
+      entityType: "ticket",
+      entityId: ticketId,
+      actorId: actor.id,
+      action: "time_logged",
+      diff: { minutes: input.minutes },
+    });
+  }
+  return message.id;
 }
 
 /** Adds a public reply or an internal note, with optional attachments and status change. */
@@ -661,6 +872,9 @@ export async function addMessage(
     isInternal: boolean;
     statusId?: string | undefined;
     files?: UploadInput[] | undefined;
+    minutes?: number | string | undefined;
+    seenUpdatedAt?: Date | string | undefined;
+    confirmStale?: boolean | undefined;
   },
 ): Promise<string> {
   const { files = [], ...rest } = input;
@@ -670,6 +884,11 @@ export async function addMessage(
 
   if (data.isInternal && !can(actor, "ticket.addInternalNote")) throw new ForbiddenError();
   if (data.statusId && !can(actor, "ticket.work")) throw new ForbiddenError();
+  if (data.minutes && !can(actor, "ticket.logTime")) throw new ForbiddenError();
+  // Collision check: someone else changed the ticket after the author opened it.
+  if (data.seenUpdatedAt && !data.confirmStale && ticket.updatedAt > data.seenUpdatedAt) {
+    throw new ConflictError("ticket_changed");
+  }
   if (!isStaff(actor) && !can(actor, "ticket.replyOwn", { ownerId: ticket.requesterId }))
     throw new ForbiddenError();
 
@@ -681,29 +900,14 @@ export async function addMessage(
   const stored = await storeUploads(files);
   try {
     return await prisma.$transaction(async (tx) => {
-      const message = await tx.ticketMessage.create({
-        data: {
-          ticketId,
-          authorId: actor.id,
-          bodyHtml,
-          bodyText: htmlToText(bodyHtml),
-          isInternal: data.isInternal,
-          source: isStaff(actor) ? "agent" : "portal",
-          attachments: {
-            create: stored.map((s) => ({ ...s, ticketId, uploadedById: actor.id })),
-          },
-        },
-      });
-      await tx.ticket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } });
-      await writeAudit(tx, {
-        entityType: "ticket",
-        entityId: ticketId,
-        actorId: actor.id,
-        action: data.isInternal ? "noted" : "replied",
-        diff: { messageId: message.id, attachments: stored.map((s) => s.filename) },
+      const messageId = await insertMessage(tx, actor, ticketId, {
+        bodyHtml,
+        isInternal: data.isInternal,
+        stored,
+        minutes: data.minutes,
       });
       if (data.statusId) await applyPatch(tx, actor, ticketId, { statusId: data.statusId });
-      return message.id;
+      return messageId;
     });
   } catch (err) {
     await discardStored(stored);

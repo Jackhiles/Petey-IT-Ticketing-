@@ -12,6 +12,8 @@ export default async function AdminHome() {
     { href: "/admin/statuses", title: t.admin.statusesCard, body: t.admin.statusesCardBody },
     { href: "/admin/priorities", title: t.admin.prioritiesCard, body: t.admin.prioritiesCardBody },
     { href: "/admin/categories", title: t.admin.categoriesCard, body: t.admin.categoriesCardBody },
+    { href: "/admin/tags", title: t.admin.tagsCard, body: t.admin.tagsCardBody },
+    { href: "/agent/responses", title: t.admin.responsesCard, body: t.admin.responsesCardBody },
     {
       href: "/admin/settings/tickets",
       title: t.admin.ticketSettingsCard,
