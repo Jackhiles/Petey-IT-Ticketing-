@@ -1,5 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Local runs read the repository-root .env (CI sets real environment variables).
+try {
+  process.loadEnvFile(new URL("./.env", import.meta.url));
+} catch {
+  // No .env file.
+}
+
 const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
 export default defineConfig({

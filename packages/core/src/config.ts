@@ -18,6 +18,12 @@ export function authRateLimitEnabled(): boolean {
   return process.env.AUTH_RATE_LIMIT !== "off";
 }
 
+/** Largest attachment accepted, from ATTACHMENT_MAX_MB (default 25). */
+export function attachmentMaxBytes(): number {
+  const mb = Number(process.env.ATTACHMENT_MAX_MB ?? 25);
+  return (Number.isFinite(mb) && mb > 0 ? mb : 25) * 1024 * 1024;
+}
+
 export function appSecret(): string {
   const secret = required("APP_SECRET");
   if (process.env.NODE_ENV === "production" && secret.length < 32) {

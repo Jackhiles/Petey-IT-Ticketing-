@@ -125,6 +125,7 @@ The core is about 30 tables. Every table has `id` (UUID), `created_at` and `upda
 | `notification_templates` | event, audience, subject, body | Editable in admin, with variables |
 | `api_tokens` | user\_id, name, token\_hash, last\_used\_at, expires\_at |  |
 | `audit_log` | entity\_type, entity\_id, actor\_id, action, diff (JSONB) | Append-only |
+| saved\_views | name, owner\_id, visibility, query (JSONB) | Ticket list filters and sort; visibility is private or shared with all technicians. Added in Phase 2 |
 | saved\_reports | name, description, owner\_id, dataset, spec (JSONB), chart\_type, visibility, shared\_group\_id | visibility is private, group or all technicians; spec holds columns, filters, grouping and aggregates |
 | report\_schedules | report\_id, cron, timezone, recipients, format, last\_run\_at, is\_enabled | Worker emails the report on schedule |
 | tags | name, color | ticket\_tags joins to tickets |
@@ -134,6 +135,7 @@ The core is about 30 tables. Every table has `id` (UUID), `created_at` and `upda
 | macros | name, actions (JSONB), owner\_id, visibility, shared\_group\_id | Reuses the automation action shape, run by hand on one ticket |
 | time\_entries | ticket\_id, user\_id, minutes, note, worked\_at, message\_id | Optional link to the reply it was logged with |
 | satisfaction\_ratings | ticket\_id, score, comment, token\_hash, submitted\_at | One per ticket; latest rating wins |
+| ticket\_presence | ticket\_id, user\_id, is\_typing, last\_seen\_at | Short-lived heartbeats for collision detection; rows older than ten minutes are cleared as new ones arrive. Added in Phase 2 |
 | user\_totp | user\_id, secret (encrypted), confirmed\_at, recovery\_code\_hashes | Two-factor enrollment |
 | import\_runs | source, mode, status, started\_by, started\_at, finished\_at, counts (JSONB), mapping (JSONB), error\_log | mode is dry\_run or live; mapping holds the status, priority, category and field choices |
 | import\_refs | source, entity\_type, external\_id, petey\_id, import\_run\_id | Unique on source, entity\_type and external\_id, so a re-run updates instead of duplicating |

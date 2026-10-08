@@ -6,5 +6,9 @@ export const dynamic = "force-dynamic";
 
 export default async function AgentLayout({ children }: { children: ReactNode }) {
   const user = await requireArea("agent");
-  return <AppShell user={user}>{children}</AppShell>;
+  return (
+    <AppShell user={user} wide>
+      {children}
+    </AppShell>
+  );
 }

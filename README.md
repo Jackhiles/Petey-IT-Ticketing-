@@ -5,8 +5,8 @@ ManageEngine ServiceDesk Plus. Requesters raise tickets by email or a self-servi
 portal, technicians work them against SLAs, and admins configure the rules. It ships
 as one `docker compose up`.
 
-> **Status:** early development. Users, sign-in (with two-factor) and admin screens
-> for users and groups are in place; tickets come next. See [`docs/PLAN.md`](docs/PLAN.md)
+> **Status:** early development. Users, sign-in (with two-factor) and the technician
+> ticket workspace are in place; the requester portal and email come next. See [`docs/PLAN.md`](docs/PLAN.md)
 > for the roadmap and [`CHANGELOG.md`](CHANGELOG.md) for progress.
 
 ## Quick start
@@ -39,6 +39,12 @@ Outbound email arrives in a later phase. Until then, a password reset request wr
 the reset link to the web container's log (`docker compose logs web`), and an admin
 can also set a new password from **Admin → Users**. An admin who loses their
 authenticator can be reset by another admin the same way.
+
+### Backups
+
+Petey keeps its data in two Docker volumes: `db-data` (the database) and `uploads`
+(ticket attachments). Back up both, at the same time, so attachments match the
+tickets that reference them.
 
 ## Architecture
 
