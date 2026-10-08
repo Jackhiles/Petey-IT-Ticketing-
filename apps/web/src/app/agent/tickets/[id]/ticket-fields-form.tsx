@@ -55,8 +55,10 @@ export function TicketFieldsForm({
   categories,
   assignees,
   groups,
+  hasChildren = false,
 }: {
   action: (prev: ActionState, form: FormData) => Promise<ActionState>;
+  hasChildren?: boolean;
   ticket: TicketFieldValues;
   statuses: StatusOption[];
   priorities: PriorityOption[];
@@ -123,6 +125,12 @@ export function TicketFieldsForm({
           ))}
         </Select>
       </Field>
+      {hasChildren && (
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="closeChildren" defaultChecked className="size-4" />
+          {getMessages().productivity.closeChildren}
+        </label>
+      )}
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? getMessages().common.working : t.saveFields}
       </Button>

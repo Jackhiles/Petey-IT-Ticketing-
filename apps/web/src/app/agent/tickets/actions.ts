@@ -52,6 +52,7 @@ export async function updateTicketAction(
         categoryId: field(form, "categoryId"),
         assigneeId: field(form, "assigneeId"),
         groupId: field(form, "groupId"),
+        closeChildren: form.get("closeChildren") === "on",
       }),
     getMessages().tickets.fieldsSaved,
   );
@@ -81,6 +82,9 @@ export async function addMessageAction(
       isInternal: field(form, "kind") === "note",
       statusId: field(form, "statusId") || undefined,
       files,
+      minutes: field(form, "minutes") || undefined,
+      seenUpdatedAt: field(form, "seenUpdatedAt") || undefined,
+      confirmStale: field(form, "confirmStale") === "1",
     }),
   );
   revalidatePath(`/agent/tickets/${id}`);

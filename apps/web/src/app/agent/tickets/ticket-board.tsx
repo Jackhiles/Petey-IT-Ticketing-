@@ -9,6 +9,7 @@ import { errorMessage } from "@/messages/en";
 import { setTicketStatusAction } from "./actions";
 import { PriorityBadge } from "./badges";
 import { RelativeTime } from "./relative-time";
+import { TagChips } from "./[id]/ticket-panels";
 
 type Move = { ticketId: string; statusId: string };
 
@@ -89,6 +90,11 @@ function Card({
       <p className="mt-1 text-xs text-zinc-500">
         {t.created} <RelativeTime date={ticket.createdAt} />
       </p>
+      {ticket.tags.length > 0 && (
+        <div className="mt-2">
+          <TagChips tags={ticket.tags} />
+        </div>
+      )}
       <div className="mt-3 flex items-center justify-between gap-2">
         <select
           value={ticket.status.id}

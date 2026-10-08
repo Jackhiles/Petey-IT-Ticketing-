@@ -10,6 +10,7 @@ import { errorMessage } from "@/messages/en";
 import { bulkUpdateAction } from "./actions";
 import { PriorityBadge, StatusBadge } from "./badges";
 import { RelativeTime } from "./relative-time";
+import { TagChips } from "./[id]/ticket-panels";
 
 type Option = { id: string; name: string };
 
@@ -132,6 +133,11 @@ export function TicketTable({
                 <Link href={`/agent/tickets/${ticket.id}`} className="font-medium hover:underline">
                   {ticket.subject}
                 </Link>
+                {ticket.tags.length > 0 && (
+                  <div className="mt-1">
+                    <TagChips tags={ticket.tags} />
+                  </div>
+                )}
                 {(ticket.category || ticket.group) && (
                   <div className="truncate text-xs text-zinc-500">
                     {[ticket.category, ticket.group?.name].filter(Boolean).join(" · ")}

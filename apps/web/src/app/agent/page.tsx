@@ -5,6 +5,7 @@ import {
   listPriorities,
   listSavedViews,
   listStatuses,
+  listTags,
   getTicketBoard,
   listTickets,
   STATUS_TYPES,
@@ -85,15 +86,17 @@ export default async function TicketListPage({ searchParams }: { searchParams: P
       throw err;
     };
 
-  const [result, board, statuses, priorities, categories, assignees, groups] = await Promise.all([
-    layout === "list" ? listTickets(actor, query).catch(tolerate(emptyList)) : emptyList,
-    layout === "board" ? getTicketBoard(actor, query).catch(tolerate([])) : [],
-    listStatuses(),
-    listPriorities(),
-    listCategories(),
-    listAssignees(actor),
-    listGroupOptions(actor),
-  ]);
+  const [result, board, statuses, priorities, categories, assignees, groups, tags] =
+    await Promise.all([
+      layout === "list" ? listTickets(actor, query).catch(tolerate(emptyList)) : emptyList,
+      layout === "board" ? getTicketBoard(actor, query).catch(tolerate([])) : [],
+      listStatuses(),
+      listPriorities(),
+      listCategories(),
+      listAssignees(actor),
+      listGroupOptions(actor),
+      listTags(),
+    ]);
 
   const current = (key: string) => single(query[key]);
   const viewQuery = Object.fromEntries(
@@ -300,6 +303,21 @@ export default async function TicketListPage({ searchParams }: { searchParams: P
                 </option>
               ))}
             </Select>
+            {tags.length > 0 && (
+              <Select
+                name="tag"
+                defaultValue={current("tag")}
+                aria-label={getMessages().productivity.tags}
+                className="w-auto"
+              >
+                <option value="">{getMessages().productivity.anyTag}</option>
+                {tags.map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    {tag.name}
+                  </option>
+                ))}
+              </Select>
+            )}
             <Select
               name="category"
               defaultValue={current("category")}
