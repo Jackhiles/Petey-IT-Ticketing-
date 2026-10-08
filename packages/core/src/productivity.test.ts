@@ -14,6 +14,7 @@ import { createMacro, listMacros, runMacro } from "./macros";
 import { heartbeat, PRESENCE_WINDOW_MS } from "./presence";
 import { createTag, setTicketTags } from "./tags";
 import { freshInstall, hasDatabase, makeUser } from "./test-support";
+import { updateTicketSettings } from "./ticket-settings";
 import { linkTickets, mergeTickets, splitMessage, unlinkTickets } from "./ticket-links";
 import { addMessage, createTicket, getTicket, listTickets, updateTicket } from "./tickets";
 import { deleteTimeEntry, logTime } from "./time-entries";
@@ -44,6 +45,8 @@ describe.skipIf(!hasDatabase)("technician productivity", () => {
     tom = await makeUser(admin, "technician", "tom@example.test");
     rex = await makeUser(admin, "requester", "rex@example.test");
     rita = await makeUser(admin, "requester", "rita@example.test");
+    // These tests are about privacy, not the portal form, so the category rule is off.
+    await updateTicketSettings(admin, { prefix: "PTY-", requireCategoryOnPortal: false });
   });
 
   const ticketFor = (requester: Actor, subject: string, extra: Record<string, unknown> = {}) =>
@@ -87,7 +90,7 @@ describe.skipIf(!hasDatabase)("technician productivity", () => {
 
     it("are hidden from requesters", async () => {
       const vip = await createTag(admin, { name: "VIP", color: "#dc2626" });
-      const t = await createTicket(rex, { subject: "Mine", descriptionHtml: "" });
+      const t = await createTicket(rex, { subject: "Mine", descriptionHtml: "<p>Details</p>" });
       await setTicketTags(tess, t.id, [vip]);
       expect((await getTicket(rex, t.id)).tags).toEqual([]);
     });
@@ -109,7 +112,7 @@ describe.skipIf(!hasDatabase)("technician productivity", () => {
     });
 
     it("can't be the requester, and are hidden from requesters", async () => {
-      const t = await createTicket(rex, { subject: "Mine", descriptionHtml: "" });
+      const t = await createTicket(rex, { subject: "Mine", descriptionHtml: "<p>Details</p>" });
       await expect(addWatcher(tess, t.id, { email: rex.email })).rejects.toBeInstanceOf(
         ConflictError,
       );
@@ -143,7 +146,7 @@ describe.skipIf(!hasDatabase)("technician productivity", () => {
     });
 
     it("is hidden from and unavailable to requesters", async () => {
-      const t = await createTicket(rex, { subject: "Mine", descriptionHtml: "" });
+      const t = await createTicket(rex, { subject: "Mine", descriptionHtml: "<p>Details</p>" });
       await logTime(tess, t.id, { minutes: 5 });
       expect((await getTicket(rex, t.id)).timeEntries).toEqual([]);
       await expect(logTime(rex, t.id, { minutes: 5 })).rejects.toBeInstanceOf(ForbiddenError);
@@ -218,8 +221,8 @@ describe.skipIf(!hasDatabase)("technician productivity", () => {
     });
 
     it("are for staff only", async () => {
-      const a = await createTicket(rex, { subject: "A", descriptionHtml: "" });
-      const b = await createTicket(rex, { subject: "B", descriptionHtml: "" });
+      const a = await createTicket(rex, { subject: "A", descriptionHtml: "<p>Details</p>" });
+      const b = await createTicket(rex, { subject: "B", descriptionHtml: "<p>Details</p>" });
       await expect(
         linkTickets(rex, a.id, { other: String(b.number), kind: "related" }),
       ).rejects.toBeInstanceOf(ForbiddenError);
@@ -289,7 +292,10 @@ describe.skipIf(!hasDatabase)("technician productivity", () => {
     });
 
     it("keeps internal notes away from the target's requester", async () => {
-      const target = await createTicket(rex, { subject: "Mine", descriptionHtml: "" });
+      const target = await createTicket(rex, {
+        subject: "Mine",
+        descriptionHtml: "<p>Details</p>",
+      });
       const source = await ticketFor(rita, "Dup");
       await addMessage(tess, source.id, {
         bodyHtml: "<p>Secret note</p>",

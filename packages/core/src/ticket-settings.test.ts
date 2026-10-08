@@ -29,7 +29,10 @@ describe("ticket numbers", () => {
 
 describe("ticket settings", () => {
   it("upper-cases a valid prefix", () => {
-    expect(ticketSettingsSchema.parse({ prefix: "help-" })).toEqual({ prefix: "HELP-" });
+    expect(ticketSettingsSchema.parse({ prefix: "help-" })).toEqual({
+      prefix: "HELP-",
+      requireCategoryOnPortal: true,
+    });
   });
 
   it.each(["", "-PTY", "PT Y", "TOOLONGPREFIX", "P_T"])("rejects prefix %j", (prefix) => {
