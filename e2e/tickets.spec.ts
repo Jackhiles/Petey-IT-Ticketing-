@@ -1,6 +1,6 @@
 import { createFirstAdmin, createUser } from "@petey/core";
 import { resetDatabase } from "@petey/db/testing";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 // Phase 2a acceptance: a technician takes a ticket from new to closed, and every change
 // appears in its history. The steps build on each other on one fresh install.
@@ -21,6 +21,24 @@ async function signIn(page: Page, email: string, home: RegExp): Promise<void> {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(home);
 }
+
+/**
+ * Drags with real mouse steps. Chromium only starts a native HTML drag after the pointer
+ * moves a little with the button held, which locator.dragTo() does not always do.
+ */
+async function dragCard(page: Page, card: Locator, column: Locator): Promise<void> {
+  const from = await card.boundingBox();
+  const to = await column.boundingBox();
+  if (!from || !to) throw new Error("card or column not visible");
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2 - 20, from.y + from.height / 2, { steps: 5 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await page.mouse.up();
+}
+
+const boardReady = (page: Page) =>
+  expect(page.locator("[data-testid=ticket-board][data-ready]")).toBeVisible();
 
 function history(page: Page) {
   return page.getByTestId("history-entry");
@@ -147,6 +165,46 @@ test("bulk close takes the ticket to closed, and history shows it", async ({ pag
   await expect(history(page).filter({ hasText: "Resolved → Closed" })).toHaveCount(1);
   // Created, started, resolved, closed: the whole lifecycle is in the history.
   await expect(history(page)).toHaveCount(4);
+});
+
+test("the board shows a column per status, and dragging a card changes its status", async ({
+  page,
+}) => {
+  // Wide enough for every column at once, like the desktop screens a board is used on.
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await signIn(page, tech.email, /\/agent$/);
+  await page.getByRole("link", { name: "All tickets" }).click();
+  await page.getByRole("link", { name: "Board" }).click();
+  await expect(page).toHaveURL(/layout=board/);
+  await boardReady(page);
+
+  const closed = page.getByTestId("board-column-Closed");
+  const open = page.getByTestId("board-column-Open");
+  await expect(closed.getByTestId("board-card")).toContainText(SUBJECT);
+  await expect(closed.getByTestId("column-count")).toHaveText("1");
+
+  await dragCard(page, closed.getByTestId("board-card"), open);
+  await expect(open.getByTestId("board-card")).toContainText(SUBJECT);
+  await expect(closed.getByTestId("column-count")).toHaveText("0");
+
+  // The move was saved: it survives a reload and shows in the ticket's history.
+  await page.reload();
+  await boardReady(page);
+  await expect(open.getByTestId("board-card")).toContainText(SUBJECT);
+
+  // The card's status menu is the keyboard-friendly way to do the same.
+  const saved = page.waitForResponse((r) => r.request().method() === "POST" && r.ok());
+  await open
+    .getByRole("combobox", { name: `Status: ${SUBJECT}` })
+    .selectOption({ label: "Closed" });
+  await saved;
+  await expect(closed.getByTestId("board-card")).toContainText(SUBJECT);
+  await page.reload();
+  await boardReady(page);
+  await expect(closed.getByTestId("board-card")).toContainText(SUBJECT);
+  await page.goto(ticketUrl);
+  await expect(history(page).filter({ hasText: "Closed → Open" })).toHaveCount(1);
+  await expect(history(page).filter({ hasText: "Open → Closed" })).toHaveCount(1);
 });
 
 test("an admin's new status and ticket prefix show up for technicians", async ({
