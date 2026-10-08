@@ -59,6 +59,15 @@ export async function updateTicketAction(
   return state;
 }
 
+/** Moves a ticket to another status, from the board's drag and drop or its card menu. */
+export async function setTicketStatusAction(id: string, statusId: string): Promise<ActionState> {
+  const actor = await requireArea("agent");
+  const state = await runAction(() => updateTicket(actor, id, { statusId }));
+  revalidatePath("/agent");
+  revalidatePath(`/agent/tickets/${id}`);
+  return state;
+}
+
 export async function addMessageAction(
   id: string,
   _prev: ActionState,

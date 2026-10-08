@@ -27,7 +27,7 @@ export function AppShell({
     <div className="min-h-screen">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         <div
-          className={`mx-auto flex ${wide ? "max-w-screen-2xl" : "max-w-5xl"} flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3`}
+          className={`mx-auto flex ${wide ? "max-w-none" : "max-w-5xl"} flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3`}
         >
           <Link href="/" className="font-semibold tracking-tight">
             {t.app.name}
@@ -51,9 +51,7 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <main className={`mx-auto ${wide ? "max-w-screen-2xl" : "max-w-5xl"} px-4 py-8`}>
-        {children}
-      </main>
+      <main className={`mx-auto ${wide ? "max-w-none" : "max-w-5xl"} px-4 py-8`}>{children}</main>
     </div>
   );
 }

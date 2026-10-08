@@ -5,6 +5,7 @@ import {
   listPriorities,
   listSavedViews,
   listStatuses,
+  getTicketBoard,
   listTickets,
   STATUS_TYPES,
   SORTS,
@@ -16,6 +17,7 @@ import { requireArea } from "@/lib/session";
 import { getMessages } from "@/messages";
 import { deleteViewAction } from "./tickets/actions";
 import { SaveViewForm } from "./tickets/save-view-form";
+import { TicketBoard } from "./tickets/ticket-board";
 import { TicketTable } from "./tickets/ticket-table";
 
 type Params = Record<string, string | string[] | undefined>;
@@ -71,12 +73,21 @@ export default async function TicketListPage({ searchParams }: { searchParams: P
       ? urlQuery
       : { statusType: UNRESOLVED };
 
-  const [result, statuses, priorities, categories, assignees, groups] = await Promise.all([
-    listTickets(actor, query).catch((err: unknown) => {
-      // A hand-edited URL with a bad value shows an empty list rather than an error page.
-      if (err instanceof ValidationError) return { items: [], total: 0, page: 1, pageSize: 50 };
+  // The board shows one column per status; the URL or the saved view picks the layout.
+  const layout = (single(params.layout) || single(query.layout)) === "board" ? "board" : "list";
+  const emptyList = { items: [], total: 0, page: 1, pageSize: 50 };
+
+  // A hand-edited URL with a bad value shows an empty list rather than an error page.
+  const tolerate =
+    <T,>(fallback: T) =>
+    (err: unknown) => {
+      if (err instanceof ValidationError) return fallback;
       throw err;
-    }),
+    };
+
+  const [result, board, statuses, priorities, categories, assignees, groups] = await Promise.all([
+    layout === "list" ? listTickets(actor, query).catch(tolerate(emptyList)) : emptyList,
+    layout === "board" ? getTicketBoard(actor, query).catch(tolerate([])) : [],
     listStatuses(),
     listPriorities(),
     listCategories(),
@@ -90,13 +101,26 @@ export default async function TicketListPage({ searchParams }: { searchParams: P
       ([k, v]) => k !== "page" && k !== "all" && v !== undefined && v !== "",
     ),
   ) as Record<string, string | string[]>;
+  // Built-in views are matched ignoring the layout, so they stay highlighted on the board.
+  const { layout: _layout, ...urlFilters } = urlQuery;
   const activeBuiltIn = activeView
     ? undefined
     : builtIns.find(
         (b) =>
           toSearch(b.query) ===
-          toSearch(Object.keys(urlQuery).length ? urlQuery : { statusType: UNRESOLVED }),
+          toSearch(Object.keys(urlFilters).length ? urlFilters : { statusType: UNRESOLVED }),
       );
+  const withLayout = (q: Params): Params => (layout === "board" ? { ...q, layout } : q);
+  const layoutHref = (target: "list" | "board") => {
+    const l = target === "board" ? "board" : "list";
+    return activeView
+      ? `/agent?view=${activeView.id}&layout=${l}`
+      : `/agent${toSearch({ ...(Object.keys(urlFilters).length ? urlFilters : { statusType: UNRESOLVED }), layout: l })}`;
+  };
+  const { status: _status, statusType: _statusType, layout: _l, page: _p, ...nonStatus } = query;
+  const listHref = Object.fromEntries(
+    statuses.map((s) => [s.id, `/agent${toSearch({ ...nonStatus, status: s.id })}`]),
+  );
 
   const from = result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1;
   const to = Math.min(result.page * result.pageSize, result.total);
@@ -118,9 +142,32 @@ export default async function TicketListPage({ searchParams }: { searchParams: P
       <PageHeader
         title={activeView?.name ?? activeBuiltIn?.label ?? getMessages().agent.title}
         actions={
-          <Link href="/agent/tickets/new" className={buttonClass()}>
-            {t.new}
-          </Link>
+          <div className="flex items-center gap-2">
+            <div
+              role="group"
+              aria-label={t.layout}
+              className="inline-flex rounded-md border border-zinc-300 p-0.5 dark:border-zinc-700"
+            >
+              {(["list", "board"] as const).map((l) => (
+                <Link
+                  key={l}
+                  href={layoutHref(l)}
+                  aria-current={layout === l ? "page" : undefined}
+                  className={cn(
+                    "rounded px-3 py-1.5 text-sm",
+                    layout === l
+                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                      : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
+                  )}
+                >
+                  {l === "list" ? t.layoutList : t.layoutBoard}
+                </Link>
+              ))}
+            </div>
+            <Link href="/agent/tickets/new" className={buttonClass()}>
+              {t.new}
+            </Link>
+          </div>
         }
       />
       <div className="grid gap-6 lg:grid-cols-[13rem_1fr]">
@@ -129,7 +176,7 @@ export default async function TicketListPage({ searchParams }: { searchParams: P
             {builtIns.map((b) => (
               <li key={b.key}>
                 <Link
-                  href={`/agent${toSearch(b.query)}`}
+                  href={`/agent${toSearch(withLayout(b.query))}`}
                   className={linkClass(activeBuiltIn?.key === b.key)}
                 >
                   {b.label}
@@ -302,17 +349,30 @@ export default async function TicketListPage({ searchParams }: { searchParams: P
               <option value="desc">{t.newestFirst}</option>
               <option value="asc">{t.oldestFirst}</option>
             </Select>
+            {layout === "board" && <input type="hidden" name="layout" value="board" />}
             <Button type="submit" variant="secondary">
               {t.applyFilters}
             </Button>
-            <Link href="/agent?all=1" className={buttonClass("ghost")}>
+            <Link
+              href={`/agent${toSearch(withLayout({ all: "1" }))}`}
+              className={buttonClass("ghost")}
+            >
               {t.clearFilters}
             </Link>
           </form>
 
-          <TicketTable items={result.items} assignees={assignees} groups={groups} />
+          {layout === "board" ? (
+            <TicketBoard columns={board} statuses={statuses} listHref={listHref} />
+          ) : (
+            <TicketTable items={result.items} assignees={assignees} groups={groups} />
+          )}
 
-          <div className="flex items-center justify-between text-sm text-zinc-500">
+          <div
+            className={cn(
+              "flex items-center justify-between text-sm text-zinc-500",
+              layout === "board" && "hidden",
+            )}
+          >
             <span data-testid="result-count">{t.showing(from, to, result.total)}</span>
             <div className="flex gap-2">
               {result.page > 1 && (
