@@ -83,6 +83,9 @@ export {
 export type {
   TicketAttachment,
   TicketBoardColumn,
+  TicketLinkKind,
+  TicketLinkView,
+  TimeEntryView,
   TicketDetail,
   TicketHistoryEntry,
   TicketListItem,
@@ -93,3 +96,24 @@ export type {
 
 export { createSavedView, deleteSavedView, listSavedViews } from "./views";
 export type { SavedViewSummary } from "./views";
+
+export { listTags, tagUsage, createTag, updateTag, deleteTag, setTicketTags } from "./tags";
+export type { TagOption } from "./tags";
+export { addWatcher, removeWatcher } from "./watchers";
+export { logTime, deleteTimeEntry } from "./time-entries";
+export { heartbeat, leaveTicket, PRESENCE_WINDOW_MS } from "./presence";
+export type { PresenceView } from "./presence";
+export { linkTickets, unlinkTickets, mergeTickets, splitMessage } from "./ticket-links";
+export {
+  listCannedResponses,
+  renderCannedResponse,
+  createCannedResponse,
+  updateCannedResponse,
+  deleteCannedResponse,
+} from "./canned-responses";
+export type { CannedResponseSummary } from "./canned-responses";
+export { listMacros, createMacro, deleteMacro, runMacro, macroActionSchema } from "./macros";
+export type { MacroAction, MacroSummary } from "./macros";
+export { SHARING } from "./sharing";
+export type { Sharing } from "./sharing";
+export { TEMPLATE_VARIABLES } from "./templates";
