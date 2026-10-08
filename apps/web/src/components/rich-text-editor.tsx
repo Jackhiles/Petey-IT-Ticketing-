@@ -2,9 +2,18 @@
 
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getMessages } from "@/messages";
 import { cn } from "./ui";
+
+/** Event other components dispatch on window to insert HTML at the cursor of an editor. */
+export const INSERT_EVENT = "petey:insert-html";
+export type InsertDetail = { editorId: string; html: string };
+
+/** Inserts HTML into the RichTextEditor with this id. */
+export function insertIntoEditor(editorId: string, html: string): void {
+  window.dispatchEvent(new CustomEvent<InsertDetail>(INSERT_EVENT, { detail: { editorId, html } }));
+}
 
 /**
  * Rich text field for descriptions, replies and notes. The HTML goes into a hidden input
@@ -16,12 +25,15 @@ export function RichTextEditor({
   initialHtml = "",
   placeholder,
   labelledBy,
+  onChange,
 }: {
   id: string;
   name: string;
   initialHtml?: string;
   placeholder?: string;
   labelledBy?: string;
+  /** Called on every edit, e.g. to tell others this technician is typing. */
+  onChange?: (html: string) => void;
 }) {
   const t = getMessages().tickets.editor;
   const [html, setHtml] = useState(initialHtml);
@@ -48,8 +60,22 @@ export function RichTextEditor({
           "prose-petey min-h-32 px-3 py-2 text-sm focus:outline-none [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_pre]:rounded [&_pre]:bg-zinc-100 [&_pre]:p-2 dark:[&_pre]:bg-zinc-800 [&_ul]:list-disc [&_ul]:pl-5",
       },
     },
-    onUpdate: ({ editor: e }) => setHtml(e.isEmpty ? "" : e.getHTML()),
+    onUpdate: ({ editor: e }) => {
+      const next = e.isEmpty ? "" : e.getHTML();
+      setHtml(next);
+      onChange?.(next);
+    },
   });
+
+  useEffect(() => {
+    if (!editor) return;
+    const onInsert = (event: Event) => {
+      const { editorId, html: insert } = (event as CustomEvent<InsertDetail>).detail;
+      if (editorId === id) editor.chain().focus().insertContent(insert).run();
+    };
+    window.addEventListener(INSERT_EVENT, onInsert);
+    return () => window.removeEventListener(INSERT_EVENT, onInsert);
+  }, [editor, id]);
 
   const active = useEditorState({
     editor,
