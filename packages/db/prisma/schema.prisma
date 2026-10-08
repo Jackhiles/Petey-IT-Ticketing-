@@ -193,6 +193,43 @@ enum TicketType {
   request
 }
 
+enum CustomFieldType {
+  text
+  textarea
+  number
+  date
+  select
+  checkbox
+}
+
+enum CustomFieldAppliesTo {
+  all
+  incident
+  request
+}
+
+/// An admin-defined ticket field. Values live in tickets.custom_fields under `key`.
+model CustomFieldDef {
+  id                  String               @id @default(uuid()) @db.Uuid
+  /// Stable machine name, e.g. "asset_tag"; never changes once created.
+  key                 String               @unique
+  label               String
+  fieldType           CustomFieldType      @map("field_type")
+  /// For select fields: the allowed choices.
+  options             Json                 @default("[]")
+  appliesTo           CustomFieldAppliesTo @default(all) @map("applies_to")
+  required            Boolean              @default(false)
+  /// Shown and asked for on the requester portal; otherwise technicians only.
+  visibleToRequesters Boolean              @default(true) @map("visible_to_requesters")
+  sortOrder           Int                  @default(0) @map("sort_order")
+  /// Inactive fields keep their stored values but are no longer shown or asked for.
+  isActive            Boolean              @default(true) @map("is_active")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("custom_field_defs")
+}
+
 enum TicketSource {
   agent
   portal
@@ -269,6 +306,8 @@ model Ticket {
   source          TicketSource             @default(agent)
   resolvedAt      DateTime?                @map("resolved_at") @db.Timestamptz(3)
   closedAt        DateTime?                @map("closed_at") @db.Timestamptz(3)
+  /// Values of admin-defined custom fields, keyed by custom_field_defs.key; validated in core.
+  customFields    Json                     @default("{}") @map("custom_fields")
   createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
   /// Maintained by database triggers from subject, description and every message.
