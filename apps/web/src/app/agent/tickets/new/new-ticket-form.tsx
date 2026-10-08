@@ -1,7 +1,8 @@
 "use client";
 
-import type { CategoryOption, PriorityOption } from "@petey/core";
-import { useActionState } from "react";
+import type { CategoryOption, CustomFieldDefView, PriorityOption } from "@petey/core";
+import { useActionState, useState, useTransition } from "react";
+import { CustomFieldInputs } from "@/components/custom-field-inputs";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { Alert, Button, Field, Input, Select } from "@/components/ui";
 import { initialState } from "@/lib/action-state";
@@ -19,7 +20,9 @@ export function NewTicketForm({
   categories,
   assignees,
   groups,
+  fields,
 }: {
+  fields: CustomFieldDefView[];
   currentUserId: string;
   requesters: (Option & { email: string })[];
   priorities: PriorityOption[];
@@ -29,10 +32,21 @@ export function NewTicketForm({
 }) {
   const t = getMessages().tickets;
   const [state, action, pending] = useActionState(createTicketAction, initialState);
+  const [, startTransition] = useTransition();
+  const [type, setType] = useState<"incident" | "request">("incident");
   const err = (name: string) => errorMessage(state.fieldErrors?.[name]);
+  const shown = fields.filter((f) => f.appliesTo === "all" || f.appliesTo === type);
 
   return (
-    <form action={action} className="space-y-4">
+    <form
+      // Submitting by hand stops React clearing the form when the server reports an error.
+      onSubmit={(e) => {
+        e.preventDefault();
+        const form = new FormData(e.currentTarget);
+        startTransition(() => action(form));
+      }}
+      className="space-y-4"
+    >
       {state.error && !state.fieldErrors && <Alert>{errorMessage(state.error)}</Alert>}
       <Field id="requesterId" label={t.requester} error={err("requesterId")}>
         <Select id="requesterId" name="requesterId" defaultValue={currentUserId}>
@@ -54,7 +68,12 @@ export function NewTicketForm({
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="type" label={t.type}>
-          <Select id="type" name="type" defaultValue="incident">
+          <Select
+            id="type"
+            name="type"
+            value={type}
+            onChange={(e) => setType(e.target.value === "request" ? "request" : "incident")}
+          >
             <option value="incident">{t.types.incident}</option>
             <option value="request">{t.types.request}</option>
           </Select>
@@ -96,6 +115,11 @@ export function NewTicketForm({
           </Select>
         </Field>
       </div>
+      {shown.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CustomFieldInputs defs={shown} errors={state.fieldErrors} prefix="new" />
+        </div>
+      )}
       <Button type="submit" disabled={pending}>
         {pending ? getMessages().common.working : t.new}
       </Button>

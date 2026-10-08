@@ -7,8 +7,8 @@ import { Alert, cn } from "@/components/ui";
 import { getMessages } from "@/messages";
 import { errorMessage } from "@/messages/en";
 import { setTicketStatusAction } from "./actions";
-import { PriorityBadge } from "./badges";
-import { RelativeTime } from "./relative-time";
+import { PriorityBadge } from "@/components/badges";
+import { RelativeTime } from "@/components/relative-time";
 import { TagChips } from "./[id]/ticket-panels";
 
 type Move = { ticketId: string; statusId: string };

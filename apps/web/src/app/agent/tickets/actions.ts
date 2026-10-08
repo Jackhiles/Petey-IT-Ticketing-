@@ -10,7 +10,7 @@ import {
 } from "@petey/core";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { field, runAction, uploads, type ActionState } from "@/lib/actions";
+import { customFieldValues, field, runAction, uploads, type ActionState } from "@/lib/actions";
 import { requireArea } from "@/lib/session";
 import { getMessages } from "@/messages";
 
@@ -29,6 +29,7 @@ export async function createTicketAction(_prev: ActionState, form: FormData): Pr
       requesterId: field(form, "requesterId") || undefined,
       assigneeId: field(form, "assigneeId"),
       groupId: field(form, "groupId"),
+      customFields: customFieldValues(form),
     }));
   });
   if (!state.ok) return state;
@@ -53,6 +54,7 @@ export async function updateTicketAction(
         assigneeId: field(form, "assigneeId"),
         groupId: field(form, "groupId"),
         closeChildren: form.get("closeChildren") === "on",
+        customFields: customFieldValues(form),
       }),
     getMessages().tickets.fieldsSaved,
   );

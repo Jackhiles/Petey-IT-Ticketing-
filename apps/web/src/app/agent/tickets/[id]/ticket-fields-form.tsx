@@ -1,6 +1,13 @@
 "use client";
 
-import type { CategoryOption, PriorityOption, StatusOption } from "@petey/core";
+import type {
+  CategoryOption,
+  CustomFieldDefView,
+  CustomFieldValue,
+  PriorityOption,
+  StatusOption,
+} from "@petey/core";
+import { CustomFieldInputs } from "@/components/custom-field-inputs";
 import { useActionState } from "react";
 import { Alert, Button, Field, Input, Select } from "@/components/ui";
 import { initialState, type ActionState } from "@/lib/action-state";
@@ -56,7 +63,11 @@ export function TicketFieldsForm({
   assignees,
   groups,
   hasChildren = false,
+  customFields = [],
+  customValues = {},
 }: {
+  customFields?: CustomFieldDefView[];
+  customValues?: Record<string, CustomFieldValue>;
   action: (prev: ActionState, form: FormData) => Promise<ActionState>;
   hasChildren?: boolean;
   ticket: TicketFieldValues;
@@ -125,6 +136,13 @@ export function TicketFieldsForm({
           ))}
         </Select>
       </Field>
+      <CustomFieldInputs
+        defs={customFields}
+        values={customValues}
+        errors={state.fieldErrors}
+        prefix="sidebar"
+        enforceRequired={false}
+      />
       {hasChildren && (
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="closeChildren" defaultChecked className="size-4" />

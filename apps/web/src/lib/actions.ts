@@ -34,6 +34,16 @@ export function field(form: FormData, name: string): string {
   return typeof value === "string" ? value : "";
 }
 
+/** Reads the custom field inputs rendered by CustomFieldInputs; missing checkboxes are "". */
+export function customFieldValues(form: FormData): Record<string, string> {
+  return Object.fromEntries(
+    form
+      .getAll("customKeys")
+      .filter((k): k is string => typeof k === "string")
+      .map((key) => [key, field(form, `custom.${key}`)]),
+  );
+}
+
 /** Reads every non-empty file from a file input. */
 export async function uploads(form: FormData, name: string): Promise<UploadInput[]> {
   const files = form.getAll(name).filter((v): v is File => v instanceof File && v.size > 0);
