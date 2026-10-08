@@ -2,6 +2,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client";
 
 export { Prisma, PrismaClient } from "./generated/prisma/client";
+export type * from "./generated/prisma/models";
+export { UserRole } from "./generated/prisma/enums";
+export { seed } from "./seed";
 
 function createClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;
@@ -20,3 +23,6 @@ export function getPrisma(): PrismaClient {
   globalForPrisma.peteyPrisma ??= createClient();
   return globalForPrisma.peteyPrisma;
 }
+
+/** The client handed to a `$transaction` callback. */
+export type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
