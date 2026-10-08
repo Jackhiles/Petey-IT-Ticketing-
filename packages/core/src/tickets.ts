@@ -499,13 +499,10 @@ async function searchIds(q: string): Promise<{ ids: string[]; number: number | n
   return { ids, number };
 }
 
-export async function listTickets(
-  actor: Actor,
-  input: unknown,
-): Promise<{ items: TicketListItem[]; total: number; page: number; pageSize: number }> {
-  if (!can(actor, "ticket.viewAll")) throw new ForbiddenError();
-  const q = parse(ticketListQuerySchema, input);
+type ListRow = Prisma.TicketGetPayload<{ include: typeof listInclude }>;
 
+/** Turns a parsed list query into Prisma filters; shared by the list and the board. */
+async function buildWhere(actor: Actor, q: TicketListQuery): Promise<Prisma.TicketWhereInput> {
   const where: Prisma.TicketWhereInput[] = [];
   if (q.q) {
     const { ids, number } = await searchIds(q.q);
@@ -523,8 +520,11 @@ export async function listTickets(
   else if (q.group) where.push({ groupId: q.group });
   if (q.requester) where.push({ requesterId: q.requester });
   if (q.type) where.push({ type: q.type });
+  return { AND: where };
+}
 
-  const orderBy: Prisma.TicketOrderByWithRelationInput[] = [
+function buildOrderBy(q: TicketListQuery): Prisma.TicketOrderByWithRelationInput[] {
+  return [
     q.sort === "priority"
       ? { priority: { level: q.dir } }
       : q.sort === "created"
@@ -536,13 +536,43 @@ export async function listTickets(
             : { updatedAt: q.dir },
     { number: "desc" },
   ];
+}
+
+function toListItem(t: ListRow, prefix: string): TicketListItem {
+  return {
+    id: t.id,
+    number: t.number,
+    displayNumber: formatTicketNumber(t.number, prefix),
+    subject: t.subject,
+    type: t.type,
+    status: t.status,
+    priority: t.priority,
+    category: t.category
+      ? t.category.parent
+        ? `${t.category.parent.name} › ${t.category.name}`
+        : t.category.name
+      : null,
+    requester: { id: t.requester.id, name: t.requester.name },
+    assignee: t.assignee,
+    group: t.group,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  };
+}
+
+export async function listTickets(
+  actor: Actor,
+  input: unknown,
+): Promise<{ items: TicketListItem[]; total: number; page: number; pageSize: number }> {
+  if (!can(actor, "ticket.viewAll")) throw new ForbiddenError();
+  const q = parse(ticketListQuerySchema, input);
+  const filter = await buildWhere(actor, q);
 
   const prisma = getPrisma();
-  const filter = { AND: where };
   const [rows, total, { prefix }] = await Promise.all([
     prisma.ticket.findMany({
       where: filter,
-      orderBy,
+      orderBy: buildOrderBy(q),
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
       include: listInclude,
@@ -555,26 +585,60 @@ export async function listTickets(
     total,
     page: q.page,
     pageSize: q.pageSize,
-    items: rows.map((t) => ({
-      id: t.id,
-      number: t.number,
-      displayNumber: formatTicketNumber(t.number, prefix),
-      subject: t.subject,
-      type: t.type,
-      status: t.status,
-      priority: t.priority,
-      category: t.category
-        ? t.category.parent
-          ? `${t.category.parent.name} › ${t.category.name}`
-          : t.category.name
-        : null,
-      requester: { id: t.requester.id, name: t.requester.name },
-      assignee: t.assignee,
-      group: t.group,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    })),
+    items: rows.map((t) => toListItem(t, prefix)),
   };
+}
+
+export interface TicketBoardColumn {
+  status: { id: string; name: string; type: StatusType };
+  /** Every ticket in this status that matches the filters. */
+  total: number;
+  /** The first BOARD_COLUMN_LIMIT of them, in the query's sort order. */
+  items: TicketListItem[];
+}
+
+export const BOARD_COLUMN_LIMIT = 50;
+
+/**
+ * The ticket list grouped into one column per status, in the admin's status order. Status
+ * filters pick which columns appear; every other filter and the sort apply inside them.
+ */
+export async function getTicketBoard(actor: Actor, input: unknown): Promise<TicketBoardColumn[]> {
+  if (!can(actor, "ticket.viewAll")) throw new ForbiddenError();
+  const q = parse(ticketListQuerySchema, input);
+  const filter = await buildWhere(actor, q);
+
+  const prisma = getPrisma();
+  const statuses = await prisma.status.findMany({
+    where: {
+      ...(q.status?.length ? { id: { in: q.status } } : {}),
+      ...(q.statusType?.length ? { type: { in: q.statusType } } : {}),
+    },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, type: true },
+  });
+  const [counts, { prefix }] = await Promise.all([
+    prisma.ticket.groupBy({ by: ["statusId"], where: filter, _count: { _all: true } }),
+    getTicketSettings(),
+  ]);
+  const totals = new Map(counts.map((c) => [c.statusId, c._count._all]));
+  const orderBy = buildOrderBy(q);
+
+  return Promise.all(
+    statuses.map(async (status) => {
+      const total = totals.get(status.id) ?? 0;
+      const rows =
+        total === 0
+          ? []
+          : await prisma.ticket.findMany({
+              where: { AND: [filter, { statusId: status.id }] },
+              orderBy,
+              take: BOARD_COLUMN_LIMIT,
+              include: listInclude,
+            });
+      return { status, total, items: rows.map((t) => toListItem(t, prefix)) };
+    }),
+  );
 }
 
 // --- Change -------------------------------------------------------------------------

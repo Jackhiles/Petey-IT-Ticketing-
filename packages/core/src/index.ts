@@ -67,8 +67,10 @@ export type { TicketSettings } from "./ticket-settings";
 export {
   SORTS,
   TICKET_TYPES,
+  BOARD_COLUMN_LIMIT,
   addMessage,
   bulkUpdateTickets,
+  getTicketBoard,
   createTicket,
   getTicket,
   listAssignees,
@@ -80,6 +82,7 @@ export {
 } from "./tickets";
 export type {
   TicketAttachment,
+  TicketBoardColumn,
   TicketDetail,
   TicketHistoryEntry,
   TicketListItem,

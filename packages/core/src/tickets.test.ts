@@ -1,11 +1,12 @@
 import { getPrisma } from "@petey/db";
 import { beforeEach, describe, expect, it } from "vitest";
-import { ValidationError } from "./errors";
+import { ForbiddenError, ValidationError } from "./errors";
 import { freshInstall, hasDatabase, makeUser } from "./test-support";
 import { updateTicketSettings } from "./ticket-settings";
 import {
   addMessage,
   bulkUpdateTickets,
+  getTicketBoard,
   createTicket,
   getTicket,
   listTickets,
@@ -269,6 +270,38 @@ describe.skipIf(!hasDatabase)("tickets", () => {
       await expect(listTickets(tech, { sort: "drop table" })).rejects.toBeInstanceOf(
         ValidationError,
       );
+    });
+  });
+
+  describe("board", () => {
+    it("groups tickets into one column per status, in status order, with counts", async () => {
+      const a = await newTicket("A");
+      const b = await newTicket("B");
+      await newTicket("C");
+      await updateTicket(tech, a.id, { statusId: await statusId("In progress") });
+      await updateTicket(tech, b.id, { statusId: await statusId("Closed") });
+
+      const board = await getTicketBoard(tech, {});
+      expect(board.map((c) => [c.status.name, c.total])).toEqual([
+        ["Open", 1],
+        ["In progress", 1],
+        ["On hold", 0],
+        ["Resolved", 0],
+        ["Closed", 1],
+      ]);
+      expect(board[1]?.items.map((t) => t.subject)).toEqual(["A"]);
+    });
+
+    it("uses status filters to choose columns and other filters inside them", async () => {
+      await newTicket("Mine", { assigneeId: tech.id });
+      await newTicket("Not mine");
+      const board = await getTicketBoard(tech, { statusType: "open,on_hold", assignee: "me" });
+      expect(board.map((c) => c.status.name)).toEqual(["Open", "In progress", "On hold"]);
+      expect(board[0]?.items.map((t) => t.subject)).toEqual(["Mine"]);
+    });
+
+    it("is for staff only", async () => {
+      await expect(getTicketBoard(requester, {})).rejects.toBeInstanceOf(ForbiddenError);
     });
   });
 
