@@ -138,6 +138,7 @@ export const en = {
     me: "Me",
     searchPlaceholder: "Search subject, description, replies or PTY-123",
     filters: "Filters",
+    activeFilters: (n: number) => (n === 1 ? "1 filter active" : `${n} filters active`),
     applyFilters: "Apply",
     clearFilters: "Clear",
     anyStatus: "Any status",

@@ -221,11 +221,27 @@ test("time is logged and totalled, and tags filter the list", async ({ page }) =
   await expect(tags).toContainText("VIP");
 
   await page.goto("/agent?all=1");
+  const toggle = page.getByTestId("filters-toggle");
+  // Filters start hidden; opening them reveals the dropdowns.
+  await expect(page.getByLabel("Tags")).toBeHidden();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await page.getByLabel("Tags").selectOption({ label: "VIP" });
   await page.getByRole("button", { name: "Apply" }).click();
   const rows = page.getByTestId("ticket-row");
   await expect(rows).toHaveCount(2); // this ticket and the one the macro tagged
   await expect(rows.filter({ hasText: "VPN drops every hour" })).toHaveCount(1);
+
+  // The toggle counts active filters, and the panel stays open after reloading.
+  await expect(toggle).toContainText("1");
+  await page.reload();
+  await expect(page.getByLabel("Tags")).toBeVisible();
+
+  // Hidden filters still apply: closing the panel keeps the list filtered.
+  await toggle.click();
+  await expect(page.getByLabel("Tags")).toBeHidden();
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(rows).toHaveCount(2);
 });
 
 test("a message is split out into its own ticket", async ({ page }) => {
