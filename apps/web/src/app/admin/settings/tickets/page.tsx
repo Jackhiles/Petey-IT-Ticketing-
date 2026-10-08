@@ -10,7 +10,7 @@ export default async function TicketSettingsPage() {
   await requireArea("admin");
   const m = getMessages();
   const s = m.ticketSettings;
-  const { prefix } = await getTicketSettings();
+  const { prefix, requireCategoryOnPortal } = await getTicketSettings();
   return (
     <>
       <Link href="/admin" className="text-sm text-zinc-500 hover:underline">
@@ -25,6 +25,15 @@ export default async function TicketSettingsPage() {
               <Input id="prefix" name="prefix" defaultValue={prefix} maxLength={10} required />
             </Field>
           </div>
+          <label className="flex w-full items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="requireCategoryOnPortal"
+              defaultChecked={requireCategoryOnPortal}
+              className="size-4"
+            />
+            {s.requireCategory}
+          </label>
         </ConfigForm>
       </Card>
     </>
