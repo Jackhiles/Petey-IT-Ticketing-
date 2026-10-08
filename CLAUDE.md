@@ -8,7 +8,9 @@ Guidance for Claude Code working in this repository. The full product brief is i
 - `apps/web` — Next.js (App Router): portal, agent and admin UI, plus `/api`
 - `apps/worker` — Node process running pg-boss jobs
 - `packages/core` — framework-free domain services; all business logic lives here
-- `packages/db` — Prisma schema, migrations, client
+- `packages/db` — Prisma schema, migrations, client, seed, test reset helper
+- Auth is Better Auth, configured in `packages/core/src/auth.ts`; permissions are `can()` in
+  `packages/core/src/permissions.ts`; pages guard with `requireArea()` in `apps/web/src/lib/session.ts`
 - `docker/` — Dockerfile and `compose.yml` (`web`, `worker`, `db`)
 
 ## Commands
@@ -18,11 +20,12 @@ pnpm install
 pnpm dev            # web + worker in watch mode (needs DATABASE_URL)
 pnpm lint           # ESLint + Prettier check
 pnpm typecheck      # tsc --noEmit in every package
-pnpm test           # Vitest (integration tests need DATABASE_URL)
-pnpm test:e2e       # Playwright against a running web app
+pnpm test           # Vitest; integration tests need DATABASE_URL pointing at a *_test database
+pnpm test:e2e       # Playwright; resets the *_test database, needs AUTH_RATE_LIMIT=off
 pnpm build          # production build of every package
 pnpm db:migrate     # create/apply a Prisma migration in development
-docker compose -f docker/compose.yml up --build
+pnpm db:seed        # starter departments and groups (only into empty tables)
+docker compose up --build
 ```
 
 ## Working rules for Claude Code

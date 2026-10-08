@@ -11,6 +11,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@petey/db": "workspace:*"
+    "@petey/db": "workspace:*",
+    "better-auth": "^1.7.7",
+    "zod": "^4.6.5"
   }
 }

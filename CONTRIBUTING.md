@@ -31,10 +31,13 @@ end-to-end tests with a Chromium you already have, set
 ```sh
 pnpm lint
 pnpm typecheck
-pnpm test        # needs DATABASE_URL pointing at a disposable database
+pnpm test        # needs DATABASE_URL pointing at a database whose name contains "test"
 pnpm build
-pnpm test:e2e    # needs a running web app, see playwright.config.ts
+AUTH_RATE_LIMIT=off pnpm test:e2e   # same test database; starts the built web app
 ```
+
+Tests empty the database before they run, and refuse to unless its name contains
+`test`, so keep a separate `petey_test` database for them.
 
 CI runs the same commands on every pull request.
 

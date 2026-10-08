@@ -43,7 +43,7 @@ These choices are fixed unless Jack changes them. They favor one language end to
 | Database | PostgreSQL 16 | Relational data, full-text search, JSONB for custom fields |
 | ORM | Prisma | Typed queries, migrations in the repo |
 | Background jobs | pg-boss | Queue lives in Postgres, so no Redis container |
-| Auth | Auth.js, email and password first | LDAP and OIDC providers slot in later |
+| Auth | Better Auth, email and password first | Stable and maintained, with two-factor built in; LDAP and OIDC slot in later. Changed from Auth.js in Phase 1, whose v5 was still in beta |
 | UI | Tailwind CSS and shadcn/ui | Accessible components, dark mode from day one |
 | Validation | Zod | Same schemas for forms, API and automation rules |
 | Email | imapflow (in), nodemailer (out), mailparser | Works with any mailbox |
@@ -103,7 +103,7 @@ The core is about 30 tables. Every table has `id` (UUID), `created_at` and `upda
 
 | Table | Key fields | Notes |
 | --- | --- | --- |
-| `users` | email, name, role, password\_hash, department\_id, is\_active | One table for requesters, technicians and admins |
+| `users` | email, name, role, department\_id, is\_active | One table for requesters, technicians and admins; the password hash lives on the credential row in `accounts`, alongside Better Auth's `sessions` and `verifications` |
 | `groups` | name, description | Technician support groups; `group_members` joins to users |
 | `departments` | name | Requester org unit |
 | `tickets` | number, type, subject, description, status\_id, priority\_id, category\_id, requester\_id, assignee\_id, group\_id, source, sla\_policy\_id, first\_response\_due, resolution\_due, first\_responded\_at, resolved\_at, closed\_at, custom\_fields (JSONB), search\_vector | type is `incident` or `request` |
