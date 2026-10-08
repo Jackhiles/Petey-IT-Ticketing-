@@ -36,6 +36,8 @@ const MATRIX: Record<Action, [boolean, boolean, boolean]> = {
   "admin.groups": [false, false, true],
   "admin.categories": [false, false, true],
   "admin.statuses": [false, false, true],
+  "admin.priorities": [false, false, true],
+  "admin.ticketSettings": [false, false, true],
   "admin.customFields": [false, false, true],
   "admin.sla": [false, false, true],
   "admin.automation": [false, false, true],

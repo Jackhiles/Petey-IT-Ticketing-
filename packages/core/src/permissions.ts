@@ -57,6 +57,8 @@ const RULES = {
   "admin.groups": ADMIN,
   "admin.categories": ADMIN,
   "admin.statuses": ADMIN,
+  "admin.priorities": ADMIN,
+  "admin.ticketSettings": ADMIN,
   "admin.customFields": ADMIN,
   "admin.sla": ADMIN,
   "admin.automation": ADMIN,
