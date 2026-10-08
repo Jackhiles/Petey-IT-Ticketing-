@@ -10,6 +10,7 @@ All notable changes to Petey are recorded here. The format follows
 
 - Tickets with a sequential number shown with an admin-set prefix (default `PTY-`), public replies, internal notes and attachments
 - Statuses (open, on hold, resolved, closed types), priorities and two-level categories, seeded with sensible defaults and managed in admin; one default each, and anything still used by tickets can't be deleted
+- Board layout for the ticket list: one column per status with counts, cards showing subject, number, requester, age, priority and assignee; drag a card or use its status menu to change status. The same filters and saved views apply, and a saved view remembers its layout
 - Technician ticket list with search, filters (status, priority, category, assignee, group, type), sort, paging, built-in views (unresolved, mine, unassigned, all), personal and shared saved views, and bulk assign, move to group and close
 - Ticket page with rich text replies and notes (Tiptap), optional status change in the same step, attachments, inline field edits and a history timeline that records every change with readable names
 - Full-text search across subject, description and every message, kept current by database triggers, with prefix matching and lookup by ticket number
