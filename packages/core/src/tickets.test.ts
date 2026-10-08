@@ -177,6 +177,22 @@ describe.skipIf(!hasDatabase)("tickets", () => {
       });
     });
 
+    it("rejects files that together exceed the per-message limit", async () => {
+      const { id } = await newTicket("Many files");
+      const file = (n: number) => ({
+        filename: `part${n}.bin`,
+        mimeType: "application/octet-stream",
+        data: new Uint8Array(20 * 1024 * 1024),
+      });
+      await expect(
+        addMessage(tech, id, {
+          bodyHtml: "<p>x</p>",
+          isInternal: false,
+          files: [file(1), file(2), file(3)],
+        }),
+      ).rejects.toMatchObject({ fieldErrors: { files: "files_too_large" } });
+    });
+
     it("rejects executable attachments", async () => {
       const { id } = await newTicket("Exe");
       const exe = {

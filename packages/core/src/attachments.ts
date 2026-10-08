@@ -54,8 +54,15 @@ export function cleanFilename(name: string): string {
   return cleaned || "file";
 }
 
+/** All files on one message together may be at most twice the single-file limit. */
+export function messageUploadMaxBytes(): number {
+  return attachmentMaxBytes() * 2;
+}
+
 export function validateUploads(files: UploadInput[]): void {
   if (files.length > MAX_FILES_PER_MESSAGE) throw new ValidationError({ files: "too_many_files" });
+  const total = files.reduce((sum, f) => sum + f.data.byteLength, 0);
+  if (total > messageUploadMaxBytes()) throw new ValidationError({ files: "files_too_large" });
   for (const f of files) {
     if (f.data.byteLength > attachmentMaxBytes())
       throw new ValidationError({ files: "file_too_large" });

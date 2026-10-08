@@ -46,7 +46,11 @@ const globalForStorage = globalThis as unknown as { peteyStorage?: FileStorage }
 /** The configured storage: STORAGE_DIR, or ./.data/uploads under the working directory. */
 export function getStorage(): FileStorage {
   globalForStorage.peteyStorage ??= new LocalFileStorage(
-    path.resolve(process.env.STORAGE_DIR || path.join(process.cwd(), ".data", "uploads")),
+    // The hint stops Next's file tracing from bundling the whole project for this path.
+    path.resolve(
+      process.env.STORAGE_DIR ||
+        path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "uploads"),
+    ),
   );
   return globalForStorage.peteyStorage;
 }
