@@ -4,13 +4,14 @@ import { createUser, resetUserTwoFactor, setUserPassword, updateUser } from "@pe
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { field, runAction, type ActionState } from "@/lib/actions";
-import { requireUser } from "@/lib/session";
+import { requireArea } from "@/lib/session";
 import { getMessages } from "@/messages";
 
-// Each action re-reads the signed-in user; packages/core checks the admin permission.
+// Each action applies the admin area guard (including any two-factor requirement);
+// packages/core checks the permission again.
 
 export async function createUserAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   let id = "";
   const state = await runAction(async () => {
     id = await createUser(actor, {
@@ -31,7 +32,7 @@ export async function updateUserAction(
   _prev: ActionState,
   form: FormData,
 ): Promise<ActionState> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   const state = await runAction(
     () =>
       updateUser(actor, id, {
@@ -52,7 +53,7 @@ export async function setPasswordAction(
   _prev: ActionState,
   form: FormData,
 ): Promise<ActionState> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   return runAction(
     () => setUserPassword(actor, id, { password: field(form, "password") }),
     getMessages().users.passwordSet,
@@ -60,7 +61,7 @@ export async function setPasswordAction(
 }
 
 export async function resetTwoFactorAction(id: string, _prev: ActionState): Promise<ActionState> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   const state = await runAction(
     () => resetUserTwoFactor(actor, id),
     getMessages().users.twoFactorReset,

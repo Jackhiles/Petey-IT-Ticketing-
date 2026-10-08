@@ -10,11 +10,11 @@ import {
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { field, runAction, type ActionState } from "@/lib/actions";
-import { requireUser } from "@/lib/session";
+import { requireArea } from "@/lib/session";
 import { getMessages } from "@/messages";
 
 export async function createGroupAction(_prev: ActionState, form: FormData): Promise<ActionState> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   let id = "";
   const state = await runAction(async () => {
     id = await createGroup(actor, {
@@ -32,7 +32,7 @@ export async function updateGroupAction(
   _prev: ActionState,
   form: FormData,
 ): Promise<ActionState> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   const state = await runAction(
     () =>
       updateGroup(actor, id, {
@@ -50,20 +50,20 @@ export async function addMemberAction(
   _prev: ActionState,
   form: FormData,
 ): Promise<ActionState> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   const state = await runAction(() => addGroupMember(actor, id, field(form, "userId")));
   revalidatePath(`/admin/groups/${id}`);
   return state;
 }
 
 export async function removeMemberAction(id: string, userId: string): Promise<void> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   await removeGroupMember(actor, id, userId);
   revalidatePath(`/admin/groups/${id}`);
 }
 
 export async function deleteGroupAction(id: string): Promise<void> {
-  const actor = await requireUser();
+  const actor = await requireArea("admin");
   await deleteGroup(actor, id);
   revalidatePath("/admin/groups");
   redirect("/admin/groups");
