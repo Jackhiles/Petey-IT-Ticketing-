@@ -117,3 +117,14 @@ export type { MacroAction, MacroSummary } from "./macros";
 export { SHARING } from "./sharing";
 export type { Sharing } from "./sharing";
 export { TEMPLATE_VARIABLES } from "./templates";
+
+export {
+  CUSTOM_FIELD_TYPES,
+  applicableFields,
+  createCustomField,
+  listCustomFields,
+  updateCustomField,
+} from "./custom-fields";
+export type { CustomFieldDefView, CustomFieldType, CustomFieldValue } from "./custom-fields";
+export { listMyTickets, markOwnTicketResolved, reopenOwnTicket } from "./portal";
+export type { MyTicketItem } from "./portal";

@@ -1,6 +1,8 @@
 "use server";
 
 import {
+  createCustomField,
+  updateCustomField,
   createTag,
   deleteTag,
   updateTag,
@@ -115,7 +117,10 @@ export async function updateTicketSettingsAction(
 ): Promise<ActionState> {
   const actor = await requireArea("admin");
   return adminChange("/admin/settings/tickets", () =>
-    updateTicketSettings(actor, { prefix: field(form, "prefix") }),
+    updateTicketSettings(actor, {
+      prefix: field(form, "prefix"),
+      requireCategoryOnPortal: form.get("requireCategoryOnPortal") === "on",
+    }),
   );
 }
 
@@ -136,4 +141,42 @@ export async function updateTagAction(
 export async function deleteTagAction(id: string, _prev: ActionState): Promise<ActionState> {
   const actor = await requireArea("admin");
   return adminChange("/admin/tags", () => deleteTag(actor, id));
+}
+
+const customFieldInput = (form: FormData) => ({
+  label: field(form, "label"),
+  options: field(form, "options")
+    .split(/\r?\n/)
+    .map((o) => o.trim())
+    .filter(Boolean),
+  appliesTo: field(form, "appliesTo") || "all",
+  required: form.get("required") === "on",
+  visibleToRequesters: form.get("visibleToRequesters") === "on",
+  sortOrder: field(form, "sortOrder") || 0,
+  isActive: form.get("isActive") === "on",
+});
+
+export async function createCustomFieldAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const actor = await requireArea("admin");
+  return adminChange("/admin/custom-fields", () =>
+    createCustomField(actor, {
+      ...customFieldInput(form),
+      key: field(form, "key"),
+      fieldType: field(form, "fieldType"),
+    }),
+  );
+}
+
+export async function updateCustomFieldAction(
+  id: string,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const actor = await requireArea("admin");
+  return adminChange("/admin/custom-fields", () =>
+    updateCustomField(actor, id, customFieldInput(form)),
+  );
 }

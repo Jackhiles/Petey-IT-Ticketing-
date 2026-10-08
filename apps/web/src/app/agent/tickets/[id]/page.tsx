@@ -5,7 +5,9 @@ import {
   listCategories,
   listGroupOptions,
   listPriorities,
+  applicableFields,
   listCannedResponses,
+  listCustomFields,
   listMacros,
   listStatuses,
   listTags,
@@ -21,8 +23,8 @@ import { Badge, Card, cn } from "@/components/ui";
 import { formatMinutes } from "@/lib/format";
 import { requireArea } from "@/lib/session";
 import { getMessages } from "@/messages";
-import { PriorityBadge, StatusBadge } from "../badges";
-import { RelativeTime } from "../relative-time";
+import { PriorityBadge, StatusBadge } from "@/components/badges";
+import { RelativeTime } from "@/components/relative-time";
 import { addMessageAction, updateTicketAction } from "../actions";
 import {
   addWatcherAction,
@@ -142,7 +144,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
     if (err instanceof NotFoundError) notFound();
     throw err;
   });
-  const [statuses, priorities, categories, assignees, groups, tags, canned, macros] =
+  const [statuses, priorities, categories, assignees, groups, tags, canned, macros, defs] =
     await Promise.all([
       listStatuses(),
       listPriorities(),
@@ -152,6 +154,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
       listTags(),
       listCannedResponses(actor),
       listMacros(actor),
+      listCustomFields(),
     ]);
   const mergedAway = ticket.links.some((l) => l.kind === "merged_into");
   const hasChildren = ticket.links.some((l) => l.kind === "child");
@@ -291,6 +294,8 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
             assignees={assignees}
             groups={groups}
             hasChildren={hasChildren}
+            customFields={applicableFields(defs, { ticketType: ticket.type, forRequester: false })}
+            customValues={Object.fromEntries(ticket.customFields.map((f) => [f.key, f.value]))}
           />
         </Card>
         <MacrosPanel macros={macros} runAction={runMacroAction.bind(null, ticket.id)} />

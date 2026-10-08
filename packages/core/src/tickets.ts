@@ -11,6 +11,13 @@ import {
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "./errors";
 import { htmlToText, isBlankHtml, sanitizeHtml } from "./html";
 import { can, type Actor, type Role } from "./permissions";
+import {
+  applicableFields,
+  listCustomFields,
+  validateCustomFieldValues,
+  type CustomFieldType,
+  type CustomFieldValue,
+} from "./custom-fields";
 import { STATUS_TYPES, type StatusType } from "./ticket-config";
 import { formatTicketNumber, getTicketSettings, parseTicketNumber } from "./ticket-settings";
 import { parse } from "./validation";
@@ -37,6 +44,7 @@ export const createTicketSchema = z.object({
   requesterId: uuid.optional(),
   assigneeId: optionalRef,
   groupId: optionalRef,
+  customFields: z.record(z.string(), z.unknown()).default({}),
 });
 
 export const updateTicketSchema = z.object({
@@ -50,6 +58,7 @@ export const updateTicketSchema = z.object({
   groupId: optionalRef,
   /** When the new status resolves or closes the ticket, also close its child tickets. */
   closeChildren: z.boolean().optional(),
+  customFields: z.record(z.string(), z.unknown()).optional(),
 });
 export type TicketPatch = Omit<z.output<typeof updateTicketSchema>, "closeChildren">;
 
@@ -186,6 +195,13 @@ export interface TicketDetail extends Omit<TicketListItem, "category"> {
   links: TicketLinkView[];
   timeEntries: TimeEntryView[];
   totalMinutes: number;
+  /** Custom fields that apply to this ticket; requesters only see requester-visible ones. */
+  customFields: {
+    key: string;
+    label: string;
+    fieldType: CustomFieldType;
+    value: CustomFieldValue;
+  }[];
 }
 
 export type TicketLinkKind =
@@ -279,6 +295,20 @@ function lifecycleStamps(
 }
 
 type DiffValue = string | null;
+
+/** Stored custom field values, ignoring anything that isn't a plain value. */
+function storedCustomFields(json: Prisma.JsonValue): Record<string, CustomFieldValue> {
+  if (!json || typeof json !== "object" || Array.isArray(json)) return {};
+  return Object.fromEntries(
+    Object.entries(json).filter(
+      ([, v]) => v === null || ["string", "number", "boolean"].includes(typeof v),
+    ),
+  ) as Record<string, CustomFieldValue>;
+}
+
+function showCustom(v: CustomFieldValue): DiffValue {
+  return v === null ? null : String(v);
+}
 type TicketDiff = Record<string, { from: DiffValue; to: DiffValue }>;
 
 /**
@@ -357,6 +387,28 @@ export async function applyPatch(
     data.groupId = group?.id ?? null;
   }
 
+  if (patch.customFields !== undefined) {
+    // Technicians edit every applicable field; required ones are only enforced when a
+    // ticket is raised, so tickets older than a new required field can still be saved.
+    const defs = await listCustomFields();
+    const current = storedCustomFields(t.customFields);
+    const sent = patch.customFields;
+    const validated = validateCustomFieldValues(defs, sent, {
+      ticketType: patch.type ?? t.type,
+      forRequester: false,
+      enforceRequired: false,
+    });
+    // Only fields actually sent are changed; the rest keep their stored values.
+    const next = Object.fromEntries(Object.entries(validated).filter(([key]) => key in sent));
+    const labels = new Map(defs.map((d) => [d.key, d.label]));
+    for (const [key, value] of Object.entries(next)) {
+      const before = current[key] ?? null;
+      if (before === value || (before === null && value === false)) continue;
+      diff[labels.get(key) ?? key] = { from: showCustom(before), to: showCustom(value) };
+    }
+    data.customFields = { ...current, ...next };
+  }
+
   if (Object.keys(diff).length === 0) return false;
   await tx.ticket.update({ where: { id: ticketId }, data });
   await writeAudit(tx, {
@@ -374,6 +426,7 @@ export async function applyPatch(
 export async function createTicket(
   actor: Actor,
   input: unknown,
+  files: UploadInput[] = [],
 ): Promise<{ id: string; number: number }> {
   if (!can(actor, "ticket.create")) throw new ForbiddenError();
   const data = parse(createTicketSchema, input);
@@ -383,7 +436,58 @@ export async function createTicket(
     throw new ForbiddenError();
   }
   const descriptionHtml = sanitizeHtml(data.descriptionHtml);
+  const ticketType = data.type ?? "incident";
 
+  // Everything the person must fill in, reported together.
+  const errors: Record<string, string> = {};
+  let customFields: Record<string, CustomFieldValue> = {};
+  try {
+    customFields = validateCustomFieldValues(await listCustomFields(), data.customFields, {
+      ticketType,
+      forRequester: !staff,
+      enforceRequired: true,
+    });
+  } catch (err) {
+    if (!(err instanceof ValidationError)) throw err;
+    Object.assign(errors, err.fieldErrors);
+  }
+  if (!staff) {
+    if (isBlankHtml(descriptionHtml) && files.length === 0) errors.descriptionHtml = "required";
+    const { requireCategoryOnPortal } = await getTicketSettings();
+    if (requireCategoryOnPortal && !data.categoryId && (await getPrisma().category.count()) > 0) {
+      errors.categoryId = "required";
+    }
+  }
+  if (Object.keys(errors).length > 0) throw new ValidationError(errors);
+  validateUploads(files);
+
+  const stored = await storeUploads(files);
+  try {
+    return await insertTicket(actor, data, {
+      descriptionHtml,
+      ticketType,
+      customFields,
+      staff,
+      stored,
+    });
+  } catch (err) {
+    await discardStored(stored);
+    throw err;
+  }
+}
+
+async function insertTicket(
+  actor: Actor,
+  data: z.output<typeof createTicketSchema>,
+  prepared: {
+    descriptionHtml: string;
+    ticketType: TicketType;
+    customFields: Record<string, CustomFieldValue>;
+    staff: boolean;
+    stored: StoredUpload[];
+  },
+): Promise<{ id: string; number: number }> {
+  const { descriptionHtml, staff } = prepared;
   return getPrisma().$transaction(async (tx) => {
     const status = await defaultStatus(tx);
     const priorityId = data.priorityId;
@@ -410,7 +514,8 @@ export async function createTicket(
         subject: data.subject,
         descriptionHtml,
         descriptionText: htmlToText(descriptionHtml),
-        type: data.type ?? "incident",
+        type: prepared.ticketType,
+        customFields: prepared.customFields,
         statusId: status.id,
         priorityId: priority.id,
         categoryId: category?.id ?? null,
@@ -418,6 +523,9 @@ export async function createTicket(
         assigneeId: assignee?.id ?? null,
         groupId: group?.id ?? null,
         source: staff ? "agent" : "portal",
+        attachments: {
+          create: prepared.stored.map((s) => ({ ...s, uploadedById: actor.id })),
+        },
       },
     });
     await writeAudit(tx, {
@@ -458,7 +566,7 @@ export async function getTicket(actor: Actor, id: string): Promise<TicketDetail>
   const base = await findVisibleTicket(prisma, actor, id);
   const staff = isStaff(actor);
 
-  const [t, history, extras, { prefix }] = await Promise.all([
+  const [t, history, extras, { prefix }, fieldDefs] = await Promise.all([
     prisma.ticket.findUniqueOrThrow({
       where: { id: base.id },
       include: {
@@ -493,7 +601,9 @@ export async function getTicket(actor: Actor, id: string): Promise<TicketDetail>
       : Promise.resolve([]),
     staff ? loadStaffExtras(base.id) : Promise.resolve(null),
     getTicketSettings(),
+    listCustomFields(),
   ]);
+  const values = storedCustomFields(t.customFields);
 
   return {
     id: t.id,
@@ -538,6 +648,9 @@ export async function getTicket(actor: Actor, id: string): Promise<TicketDetail>
     links: extras ? extras.links(prefix) : [],
     timeEntries: extras?.timeEntries ?? [],
     totalMinutes: extras?.timeEntries.reduce((sum, e) => sum + e.minutes, 0) ?? 0,
+    customFields: applicableFields(fieldDefs, { ticketType: t.type, forRequester: !staff }).map(
+      (d) => ({ key: d.key, label: d.label, fieldType: d.fieldType, value: values[d.key] ?? null }),
+    ),
   };
 }
 
@@ -892,6 +1005,10 @@ export async function addMessage(
   if (!isStaff(actor) && !can(actor, "ticket.replyOwn", { ownerId: ticket.requesterId }))
     throw new ForbiddenError();
 
+  // A requester replying to a resolved ticket reopens it; closed tickets are final.
+  const requesterReopens = !isStaff(actor) && ticket.status.type === "resolved";
+  if (!isStaff(actor) && ticket.status.type === "closed") throw new ConflictError("ticket_closed");
+
   const bodyHtml = sanitizeHtml(data.bodyHtml);
   if (isBlankHtml(bodyHtml) && files.length === 0)
     throw new ValidationError({ bodyHtml: "required" });
@@ -907,6 +1024,9 @@ export async function addMessage(
         minutes: data.minutes,
       });
       if (data.statusId) await applyPatch(tx, actor, ticketId, { statusId: data.statusId });
+      if (requesterReopens) {
+        await applyPatch(tx, actor, ticketId, { statusId: (await defaultStatus(tx)).id });
+      }
       return messageId;
     });
   } catch (err) {

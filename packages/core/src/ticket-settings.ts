@@ -14,11 +14,16 @@ export const ticketSettingsSchema = z.object({
     .max(10, { message: "prefix_too_long" })
     .regex(/^[A-Za-z][A-Za-z0-9]*-?$/, { message: "prefix_invalid" })
     .transform((p) => p.toUpperCase()),
+  /** Requesters must pick a category on the portal (when any categories exist). */
+  requireCategoryOnPortal: z.boolean().default(true),
 });
 export type TicketSettings = z.infer<typeof ticketSettingsSchema>;
 
 const KEY = "tickets";
-export const TICKET_SETTINGS_DEFAULTS: TicketSettings = { prefix: "PTY-" };
+export const TICKET_SETTINGS_DEFAULTS: TicketSettings = {
+  prefix: "PTY-",
+  requireCategoryOnPortal: true,
+};
 
 export async function getTicketSettings(): Promise<TicketSettings> {
   const row = await getPrisma().setting.findUnique({ where: { key: KEY } });

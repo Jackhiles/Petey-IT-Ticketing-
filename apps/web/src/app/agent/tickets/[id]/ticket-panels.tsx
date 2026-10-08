@@ -8,8 +8,8 @@ import { initialState, type ActionState } from "@/lib/action-state";
 import { formatMinutes } from "@/lib/format";
 import { getMessages } from "@/messages";
 import { errorMessage } from "@/messages/en";
-import { StatusBadge } from "../badges";
-import { RelativeTime } from "../relative-time";
+import { StatusBadge } from "@/components/badges";
+import { RelativeTime } from "@/components/relative-time";
 
 type FormAction = (prev: ActionState, form: FormData) => Promise<ActionState>;
 

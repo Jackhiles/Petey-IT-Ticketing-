@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getAttachment } from "./attachments";
 import { ForbiddenError, NotFoundError } from "./errors";
 import { freshInstall, hasDatabase, makeUser } from "./test-support";
+import { updateTicketSettings } from "./ticket-settings";
 import {
   addMessage,
   bulkUpdateTickets,
@@ -35,6 +36,8 @@ describe.skipIf(!hasDatabase)("ticket visibility", () => {
     tech = await makeUser(admin, "technician");
     alice = await makeUser(admin, "requester", "alice@example.test");
     bob = await makeUser(admin, "requester", "bob@example.test");
+    // These tests are about privacy, not the portal form, so the category rule is off.
+    await updateTicketSettings(admin, { prefix: "PTY-", requireCategoryOnPortal: false });
 
     aliceTicket = (
       await createTicket(alice, { subject: "Alice's laptop", descriptionHtml: "<p>Broken</p>" })
@@ -130,13 +133,21 @@ describe.skipIf(!hasDatabase)("ticket visibility", () => {
     });
 
     it("always becomes the requester of tickets they create, and cannot set staff fields", async () => {
-      const own = await createTicket(alice, { subject: "Mine", descriptionHtml: "" });
+      const own = await createTicket(alice, { subject: "Mine", descriptionHtml: "<p>Details</p>" });
       expect((await getTicket(admin, own.id)).requester.id).toBe(alice.id);
       await expect(
-        createTicket(alice, { subject: "x", descriptionHtml: "", requesterId: bob.id }),
+        createTicket(alice, {
+          subject: "x",
+          descriptionHtml: "<p>Details</p>",
+          requesterId: bob.id,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenError);
       await expect(
-        createTicket(alice, { subject: "x", descriptionHtml: "", assigneeId: tech.id }),
+        createTicket(alice, {
+          subject: "x",
+          descriptionHtml: "<p>Details</p>",
+          assigneeId: tech.id,
+        }),
       ).rejects.toBeInstanceOf(ForbiddenError);
     });
   });

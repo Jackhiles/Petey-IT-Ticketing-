@@ -1,5 +1,7 @@
 import {
+  applicableFields,
   listAssignees,
+  listCustomFields,
   listCategories,
   listGroupOptions,
   listPriorities,
@@ -14,12 +16,13 @@ import { NewTicketForm } from "./new-ticket-form";
 export default async function NewTicketPage() {
   const actor = await requireArea("agent");
   const t = getMessages().tickets;
-  const [requesters, priorities, categories, assignees, groups] = await Promise.all([
+  const [requesters, priorities, categories, assignees, groups, defs] = await Promise.all([
     listRequesterOptions(actor),
     listPriorities(),
     listCategories(),
     listAssignees(actor),
     listGroupOptions(actor),
+    listCustomFields(),
   ]);
   return (
     <>
@@ -35,6 +38,12 @@ export default async function NewTicketPage() {
           categories={categories}
           assignees={assignees}
           groups={groups}
+          fields={[
+            ...applicableFields(defs, { ticketType: "incident", forRequester: false }),
+            ...applicableFields(defs, { ticketType: "request", forRequester: false }).filter(
+              (d) => d.appliesTo === "request",
+            ),
+          ]}
         />
       </Card>
     </>
