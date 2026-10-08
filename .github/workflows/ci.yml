@@ -22,13 +22,17 @@ jobs:
         env:
           POSTGRES_USER: petey
           POSTGRES_PASSWORD: petey
-          POSTGRES_DB: petey
+          POSTGRES_DB: petey_test
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U petey" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://petey:petey@localhost:5432/petey
-      APP_SECRET: ci-only-secret-not-for-production
+      # The database name must contain "test": tests empty it before they run.
+      DATABASE_URL: postgresql://petey:petey@localhost:5432/petey_test
+      APP_SECRET: ci-only-secret-not-for-production-0123456789
+      APP_URL: http://localhost:3000
+      # The end-to-end run signs in many times a second from one address.
+      AUTH_RATE_LIMIT: "off"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
