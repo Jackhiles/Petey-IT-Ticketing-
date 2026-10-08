@@ -125,6 +125,7 @@ The core is about 30 tables. Every table has `id` (UUID), `created_at` and `upda
 | `notification_templates` | event, audience, subject, body | Editable in admin, with variables |
 | `api_tokens` | user\_id, name, token\_hash, last\_used\_at, expires\_at |  |
 | `audit_log` | entity\_type, entity\_id, actor\_id, action, diff (JSONB) | Append-only |
+| saved\_views | name, owner\_id, visibility, query (JSONB) | Ticket list filters and sort; visibility is private or shared with all technicians. Added in Phase 2 |
 | saved\_reports | name, description, owner\_id, dataset, spec (JSONB), chart\_type, visibility, shared\_group\_id | visibility is private, group or all technicians; spec holds columns, filters, grouping and aggregates |
 | report\_schedules | report\_id, cron, timezone, recipients, format, last\_run\_at, is\_enabled | Worker emails the report on schedule |
 | tags | name, color | ticket\_tags joins to tickets |

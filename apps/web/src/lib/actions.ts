@@ -1,5 +1,5 @@
 import "server-only";
-import { CoreError, ValidationError, type FieldErrors } from "@petey/core";
+import { CoreError, ValidationError, type FieldErrors, type UploadInput } from "@petey/core";
 import type { ActionState } from "./action-state";
 
 export type { ActionState } from "./action-state";
@@ -32,4 +32,16 @@ export async function runAction(
 export function field(form: FormData, name: string): string {
   const value = form.get(name);
   return typeof value === "string" ? value : "";
+}
+
+/** Reads every non-empty file from a file input. */
+export async function uploads(form: FormData, name: string): Promise<UploadInput[]> {
+  const files = form.getAll(name).filter((v): v is File => v instanceof File && v.size > 0);
+  return Promise.all(
+    files.map(async (f) => ({
+      filename: f.name,
+      mimeType: f.type || "application/octet-stream",
+      data: new Uint8Array(await f.arrayBuffer()),
+    })),
+  );
 }

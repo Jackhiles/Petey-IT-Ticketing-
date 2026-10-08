@@ -8,3 +8,5 @@
 !.env.example
 test-results
 playwright-report
+.pnpm-store
+**/.data

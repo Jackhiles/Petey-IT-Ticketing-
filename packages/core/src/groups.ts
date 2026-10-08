@@ -126,10 +126,9 @@ export async function deleteGroup(actor: Actor, id: string): Promise<void> {
 export async function addGroupMember(actor: Actor, groupId: string, userId: string): Promise<void> {
   requireAdmin(actor);
   await getPrisma().$transaction(async (tx) => {
-    const [group, user] = await Promise.all([
-      tx.group.findUnique({ where: { id: groupId }, select: { id: true } }),
-      tx.user.findUnique({ where: { id: userId }, select: { role: true } }),
-    ]);
+    // A transaction has one connection, so its queries run one after another.
+    const group = await tx.group.findUnique({ where: { id: groupId }, select: { id: true } });
+    const user = await tx.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (!group || !user) throw new NotFoundError();
     if (user.role === "requester")
       throw new ConflictError("requester_not_allowed", { userId: "requester_not_allowed" });

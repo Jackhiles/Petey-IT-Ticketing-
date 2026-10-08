@@ -9,6 +9,14 @@ export default async function AdminHome() {
   const cards = [
     { href: "/admin/users", title: t.admin.usersCard, body: t.admin.usersCardBody },
     { href: "/admin/groups", title: t.admin.groupsCard, body: t.admin.groupsCardBody },
+    { href: "/admin/statuses", title: t.admin.statusesCard, body: t.admin.statusesCardBody },
+    { href: "/admin/priorities", title: t.admin.prioritiesCard, body: t.admin.prioritiesCardBody },
+    { href: "/admin/categories", title: t.admin.categoriesCard, body: t.admin.categoriesCardBody },
+    {
+      href: "/admin/settings/tickets",
+      title: t.admin.ticketSettingsCard,
+      body: t.admin.ticketSettingsCardBody,
+    },
     {
       href: "/admin/settings/security",
       title: t.admin.securityCard,
