@@ -1,6 +1,9 @@
 "use server";
 
 import {
+  createTag,
+  deleteTag,
+  updateTag,
   createCategory,
   createPriority,
   createStatus,
@@ -114,4 +117,23 @@ export async function updateTicketSettingsAction(
   return adminChange("/admin/settings/tickets", () =>
     updateTicketSettings(actor, { prefix: field(form, "prefix") }),
   );
+}
+
+const tagInput = (form: FormData) => ({ name: field(form, "name"), color: field(form, "color") });
+
+export async function createTagAction(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const actor = await requireArea("admin");
+  return adminChange("/admin/tags", () => createTag(actor, tagInput(form)));
+}
+export async function updateTagAction(
+  id: string,
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const actor = await requireArea("admin");
+  return adminChange("/admin/tags", () => updateTag(actor, id, tagInput(form)));
+}
+export async function deleteTagAction(id: string, _prev: ActionState): Promise<ActionState> {
+  const actor = await requireArea("admin");
+  return adminChange("/admin/tags", () => deleteTag(actor, id));
 }
