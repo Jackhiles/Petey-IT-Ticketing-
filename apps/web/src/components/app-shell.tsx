@@ -5,7 +5,16 @@ import { getMessages } from "@/messages";
 import { SignOutButton } from "./sign-out-button";
 
 /** Header and page frame for signed-in users. Links show only the areas the user can reach. */
-export function AppShell({ user, children }: { user: SessionUser; children: ReactNode }) {
+export function AppShell({
+  user,
+  wide = false,
+  children,
+}: {
+  user: SessionUser;
+  /** Full-width content, for the ticket workspace. */
+  wide?: boolean;
+  children: ReactNode;
+}) {
   const t = getMessages();
   const links = [
     { href: "/portal", label: t.nav.portal, show: can(user, "area.portal") },
@@ -17,7 +26,9 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
   return (
     <div className="min-h-screen">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+        <div
+          className={`mx-auto flex ${wide ? "max-w-screen-2xl" : "max-w-5xl"} flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3`}
+        >
           <Link href="/" className="font-semibold tracking-tight">
             {t.app.name}
           </Link>
@@ -40,7 +51,9 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+      <main className={`mx-auto ${wide ? "max-w-screen-2xl" : "max-w-5xl"} px-4 py-8`}>
+        {children}
+      </main>
     </div>
   );
 }
