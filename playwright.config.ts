@@ -26,8 +26,8 @@ export default defineConfig({
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    // Phone width checks layout only; the stateful auth flow runs once, on desktop.
-    { name: "phone", use: { ...devices["Pixel 7"] }, testMatch: /health\.spec\.ts/ },
+    // Phone width: the health checks and the requester portal, which many people use on phones.
+    { name: "phone", use: { ...devices["Pixel 7"] }, testMatch: /(health|portal)\.spec\.ts/ },
   ],
   // Start the production build unless E2E_BASE_URL points at an already-running instance.
   webServer: process.env.E2E_BASE_URL
