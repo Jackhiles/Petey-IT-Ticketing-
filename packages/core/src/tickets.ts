@@ -392,16 +392,15 @@ export async function applyPatch(
     // ticket is raised, so tickets older than a new required field can still be saved.
     const defs = await listCustomFields();
     const current = storedCustomFields(t.customFields);
-    const next = validateCustomFieldValues(defs, patch.customFields, {
+    const sent = patch.customFields;
+    const validated = validateCustomFieldValues(defs, sent, {
       ticketType: patch.type ?? t.type,
       forRequester: false,
       enforceRequired: false,
     });
-    const labels = new Map(defs.map((d) => [d.key, d.label]));
     // Only fields actually sent are changed; the rest keep their stored values.
-    for (const key of Object.keys(next)) {
-      if (!(key in patch.customFields)) delete next[key];
-    }
+    const next = Object.fromEntries(Object.entries(validated).filter(([key]) => key in sent));
+    const labels = new Map(defs.map((d) => [d.key, d.label]));
     for (const [key, value] of Object.entries(next)) {
       const before = current[key] ?? null;
       if (before === value || (before === null && value === false)) continue;
